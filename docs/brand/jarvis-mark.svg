@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Jarvis">
+  <defs>
+    <linearGradient id="jv-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c1c21"/>
+      <stop offset="1" stop-color="#09090b"/>
+    </linearGradient>
+    <linearGradient id="jv-face" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e4e4e7"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="496" height="496" rx="118" fill="url(#jv-bg)"/>
+  <rect x="8.5" y="8.5" width="495" height="495" rx="117.5" fill="none" stroke="#ffffff" stroke-opacity="0.09"/>
+  <rect x="112" y="170" width="288" height="204" rx="102" fill="url(#jv-face)"/>
+  <ellipse cx="208" cy="272" rx="21" ry="27" fill="#0b0b0d"/>
+  <ellipse cx="304" cy="272" rx="21" ry="27" fill="#0b0b0d"/>
+  <circle cx="396" cy="150" r="34" fill="#09090b"/>
+  <circle cx="396" cy="150" r="22" fill="#22c55e"/>
+</svg>

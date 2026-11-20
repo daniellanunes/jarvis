@@ -1,0 +1,818 @@
+/* Notch: no drop shadows, and motion for opening, closing and appearing.
+   The panel unfolds downward from the pill (clip-path from the top centre),
+   folds back up when closing; the pill slides down from the screen edge. */
+
+.notch-pill,
+.notch-voice-bar,
+.notch-panel {
+  box-shadow: none !important;
+}
+
+/* Hidden mode: the only thing on screen is this invisible strip at the very
+   top centre. Entering it reveals the pill. */
+.wake-strip {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  width: 240px;
+  height: 10px;
+  transform: translateX(-50%);
+  background: transparent;
+  cursor: pointer;
+}
+/* The visible lip: a small dark tab hanging from the top edge, in the
+   notch's own colour, so hidden still says "I'm here". */
+.wake-strip::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 96px;
+  height: 7px;
+  transform: translateX(-50%);
+  /* One flat colour, the notch's own — no border, no grip. */
+  background: #0d0d0f;
+  border-radius: 0 0 7px 7px;
+  transition: height 0.12s ease, width 0.12s ease;
+}
+.wake-strip:hover::after {
+  width: 120px;
+  height: 10px;
+}
+
+/* Panel open: grows down from the pill's width. */
+.notch-panel.opening {
+  animation: notchOpen 0.26s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+.notch-panel.opening > * {
+  animation: notchContent 0.26s ease-out both;
+}
+@keyframes notchOpen {
+  from {
+    clip-path: inset(0 34% 92% 34% round 0 0 18px 18px);
+    opacity: 0.7;
+  }
+  to {
+    clip-path: inset(0 0 0 0 round 0 0 14px 14px);
+    opacity: 1;
+  }
+}
+@keyframes notchContent {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Panel close: folds back up into the pill. */
+.notch-panel.closing {
+  animation: notchClose 0.17s cubic-bezier(0.4, 0, 0.9, 0.6) both;
+  pointer-events: none;
+}
+@keyframes notchClose {
+  from {
+    clip-path: inset(0 0 0 0 round 0 0 14px 14px);
+    opacity: 1;
+  }
+  to {
+    clip-path: inset(0 34% 92% 34% round 0 0 18px 18px);
+    opacity: 0.4;
+  }
+}
+
+/* Pill / status bar appearing from (and leaving to) the top edge. */
+.notch-pill.appear,
+.notch-voice-bar.appear {
+  animation: pillIn 0.22s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+.notch-pill.leaving,
+.notch-voice-bar.leaving {
+  animation: pillOut 0.16s ease-in both;
+  pointer-events: none;
+}
+@keyframes pillIn {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes pillOut {
+  to {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}
+
+/* Compact notch: a little larger, and the status dot kept clear of the mascot
+   (accessories and the neon glow reach beyond the mascot's own box). */
+.notch-pill {
+  height: 38px;
+  min-width: 200px;
+  padding: 0 14px 0 12px;
+  border-radius: 0 0 18px 18px;
+}
+.notch-voice-bar {
+  height: 46px;
+  min-width: 420px;
+  padding: 0 12px 0 12px;
+  border-radius: 0 0 19px 19px;
+}
+.notch-voice-bar.thinking,
+.notch-voice-bar.executing {
+  height: 58px;
+  min-width: 490px;
+}
+.notch-pill-left {
+  gap: 10px;
+}
+.notch-pill-left > .status-dot {
+  margin-left: 8px;
+}
+.notch-pill-title {
+  font-size: 12.5px;
+}
+.notch-clock {
+  font-size: 12.5px;
+}
+
+/* Sidebar header: Mochi on the left, name + AI status in the right corner. */
+.brand-info.right {
+  flex: 1;
+  min-width: 0;
+  align-items: flex-end;
+  text-align: right;
+}
+.brand-info.right .brand-name {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.brand-status {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  max-width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  color: var(--text-3);
+  cursor: default;
+}
+.brand-status span:last-child {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.brand-status.offline,
+.brand-status.none {
+  cursor: pointer;
+}
+.brand-status.offline {
+  color: #f08a87;
+}
+.brand-status.offline:hover,
+.brand-status.none:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.status-dot.red {
+  background: var(--red);
+}
+.status-dot.idle {
+  background: var(--text-3);
+}
+.brand-collapse {
+  align-self: flex-start;
+  flex-shrink: 0;
+  margin: -2px -4px 0 2px;
+}
+
+/* Ajustes → Mascote */
+.mascot-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+.mascot-wardrobe {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 10px;
+  overflow: hidden;
+}
+.mascot-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-top: 4px;
+}
+.mascot-name {
+  font-weight: 600;
+  font-size: 12.5px;
+}
+.mascot-groups {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+}
+.mascot-groups::-webkit-scrollbar {
+  width: 5px;
+}
+.mascot-groups::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+.mascot-group-title,
+.mascot-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+.mascot-sub {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.mascot-swatch {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  overflow: hidden;
+}
+.mascot-swatch.on {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text);
+}
+.mascot-swatch.custom {
+  display: inline-block;
+  background: conic-gradient(#ef4444, #f59e0b, #facc15, #22c55e, #06b6d4, #3b82f6, #a855f7, #ec4899, #ef4444);
+}
+.mascot-picker {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.mascot-hex {
+  width: 96px;
+  height: 30px;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 12px;
+  text-transform: lowercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notch-panel.opening,
+  .notch-panel.opening > *,
+  .notch-panel.closing,
+  .notch-pill.appear,
+  .notch-voice-bar.appear,
+  .notch-pill.leaving,
+  .notch-voice-bar.leaving {
+    animation-duration: 0.01s;
+  }
+}
+
+/* ── Notch widgets: FPS, weather, PC usage rings ─────────────────────────── */
+.notch-widgets {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: 4px;
+}
+.notch-widgets[hidden],
+.notch-widgets [hidden] {
+  display: none !important;
+}
+.nw-fps {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(74, 222, 128, 0.1);
+  color: #4ade80;
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+}
+.nw-fps b {
+  font-size: 12px;
+  font-weight: 700;
+}
+.nw-fps span {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  opacity: 0.75;
+}
+.nw-fps[data-level="warm"] {
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+}
+.nw-fps[data-level="hot"] {
+  background: rgba(248, 113, 113, 0.12);
+  color: #f87171;
+}
+.nw-weather {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: default;
+  color: #e4e4e7;
+}
+.nw-weather-ico {
+  display: flex;
+  color: #a1a1aa;
+}
+.nw-weather[data-kind="clear"] .nw-weather-ico {
+  color: #fcd34d;
+}
+.nw-weather[data-kind="partly"] .nw-weather-ico {
+  color: #fde68a;
+}
+.nw-weather[data-kind="rain"] .nw-weather-ico,
+.nw-weather[data-kind="drizzle"] .nw-weather-ico {
+  color: #7dd3fc;
+}
+.nw-weather[data-kind="storm"] .nw-weather-ico {
+  color: #c4b5fd;
+}
+.nw-weather b {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.nw-rain {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #7dd3fc;
+}
+.nw-rings {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.nw-ring {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  cursor: default;
+}
+.nw-ring svg {
+  display: block;
+}
+.nw-track {
+  stroke: rgba(255, 255, 255, 0.09);
+}
+.nw-arc {
+  stroke: #e4e4e7;
+  transition: stroke-dashoffset 0.6s ease, stroke 0.3s;
+}
+.nw-ring[data-k="cpu"] .nw-arc { stroke: #60a5fa; }
+.nw-ring[data-k="ram"] .nw-arc { stroke: #a78bfa; }
+.nw-ring[data-k="gpu"] .nw-arc { stroke: #34d399; }
+.nw-ring[data-k="disk"] .nw-arc { stroke: #a1a1aa; }
+.nw-ring[data-level="warm"] .nw-arc { stroke: #fbbf24; }
+.nw-ring[data-level="hot"] .nw-arc { stroke: #f87171; }
+.nw-ring-num {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 7.5px;
+  font-weight: 700;
+  color: #d4d4d8;
+  letter-spacing: -0.02em;
+}
+.nw-ring:hover .nw-track {
+  stroke: rgba(255, 255, 255, 0.18);
+}
+.notch-tip {
+  position: fixed;
+  z-index: 9999;
+  max-width: 280px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: #0d0d0f;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e4e4e7;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-line;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-3px);
+  transition: opacity 0.12s, transform 0.12s;
+}
+.notch-tip.show {
+  opacity: 1;
+  transform: none;
+}
+.notch-tip::first-line {
+  font-weight: 600;
+}
+
+/* Ajustes → Notch → Informações no notch */
+.nw-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.nw-setting {
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.nw-setting-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.nw-setting-text {
+  flex: 1;
+}
+.nw-setting-title {
+  font-weight: 600;
+  font-size: 12.5px;
+}
+.nw-setting-desc {
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+.nw-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 30px;
+  height: 18px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.14);
+  transition: background 0.15s;
+}
+.nw-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fafafa;
+  transition: transform 0.15s;
+}
+.nw-setting.on .nw-switch {
+  background: #22c55e;
+}
+.nw-setting.on .nw-knob {
+  transform: translateX(12px);
+}
+.nw-setting-extra {
+  padding: 0 12px 12px;
+}
+.nw-setting-note {
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.5;
+}
+.nw-setting-result {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+.nw-setting-result.err {
+  color: #f87171;
+}
+/* With widgets on the right, the mascot and dot keep their room. */
+.notch-pill > .notch-pill-left {
+  flex-shrink: 0;
+}
+.notch-pill .notch-pill-title {
+  min-width: 0;
+}
+
+/* ── Internet chip (notch) ─────────────────────────────────────────────── */
+.nw-net {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #a1a1aa;
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+}
+.nw-net-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4ade80;
+}
+.nw-net[data-state="slow"] .nw-net-dot { background: #fbbf24; }
+.nw-net[data-state="off"] { color: #f87171; }
+.nw-net[data-state="off"] .nw-net-dot { background: #f87171; }
+
+/* ── Game mode: the pill keeps only the FPS ─────────────────────────────── */
+.notch-pill.game {
+  min-width: 0;
+  padding: 0 10px;
+}
+.notch-pill.game .notch-pill-left,
+.notch-pill.game .notch-clock,
+.notch-pill.game .nw-weather,
+.notch-pill.game .nw-rings,
+.notch-pill.game .nw-net {
+  display: none !important;
+}
+.notch-pill.game .notch-widgets {
+  margin: 0;
+}
+
+/* ── Tool tabs: E-mail, Arquivos, Notas, GitHub ─────────────────────────── */
+.tt-searchbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.tt-searchbar .input {
+  height: 34px;
+}
+.tt-search {
+  flex: 1;
+}
+.tt-hint {
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.5;
+  margin: 8px 0 4px;
+}
+.tt-note {
+  font-size: 12px;
+  color: var(--text-2);
+  padding: 14px 2px;
+}
+.tt-note.err {
+  color: #f87171;
+}
+.tt-chips,
+.tt-outputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 10px;
+}
+.tt-chip {
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-2);
+  font-size: 11.5px;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tt-chip:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.tt-chip.on {
+  background: #fafafa;
+  border-color: #fafafa;
+  color: #0b0b0d;
+  font-weight: 600;
+}
+.tt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 10px;
+}
+.tt-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 10px;
+  border-radius: 9px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.tt-row:hover {
+  background: rgba(255, 255, 255, 0.045);
+}
+.tt-row-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tt-row-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tt-row-meta {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.tt-row-sub {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tt-row-snippet {
+  font-size: 11.5px;
+  color: var(--text-3);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tt-mail.unread .tt-row-title::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #60a5fa;
+  margin-right: 7px;
+  vertical-align: middle;
+}
+.tt-mail.unread .tt-row-sub {
+  color: var(--text-1, #ececee);
+  font-weight: 600;
+}
+.tt-mail-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  align-items: flex-start;
+}
+.tt-mail-subject {
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+.tt-mail-meta {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.tt-mail-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-2);
+  margin: 12px 0 0;
+}
+.tt-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.tt-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: default;
+}
+.tt-file-ico {
+  font-size: 18px;
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.tt-file-info {
+  flex: 1;
+  min-width: 0;
+}
+.tt-ci {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-3);
+}
+.tt-ci.ok { background: rgba(74, 222, 128, 0.12); color: #4ade80; }
+.tt-ci.fail { background: rgba(248, 113, 113, 0.12); color: #f87171; }
+.tt-ci.pending { background: rgba(251, 191, 36, 0.12); color: #fbbf24; }
+
+/* Meu PC: áudio e internet */
+.tt-pc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+.tt-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  min-width: 0;
+}
+.tt-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.tt-volume {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--text-2);
+  margin-top: 8px;
+  justify-content: space-between;
+}
+.tt-range {
+  flex: 1;
+  accent-color: #fafafa;
+}
+.tt-range-val {
+  width: 34px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.btn-danger-soft {
+  background: rgba(248, 113, 113, 0.14) !important;
+  color: #f87171 !important;
+}
+
+.tt-volume .btn {
+  white-space: nowrap;
+}
+
+/* Agenda: account menu under the title */
+.ag-account {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-3);
+  cursor: pointer;
+  text-align: left;
+}
+.ag-account:hover,
+.ag-account.open {
+  color: var(--text-1, #ececee);
+}
+.ag-account-menu {
+  margin: 10px 0 4px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.ag-account-text {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}

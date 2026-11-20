@@ -1,0 +1,72 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Jarvis",
+  "version": "0.1.0",
+  "identifier": "com.jarvis.assistant",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost",
+      "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost ws://localhost:1420 http://localhost:1420"
+    },
+    "windows": [
+      {
+        "label": "island",
+        "title": "Jarvis",
+        "url": "index.html",
+        "width": 240,
+        "height": 6,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "focus": false,
+        "visible": true,
+        "center": false,
+        "maximizable": false,
+        "minimizable": false,
+        "closable": false,
+        "dragDropEnabled": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --use-fake-ui-for-media-stream --disable-background-timer-throttling --disable-renderer-backgrounding"
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "../target/release/openjarvis-hook.exe": "openjarvis-hook.exe"
+    },
+    "copyright": "© Louis Raille",
+    "category": "Productivity",
+    "shortDescription": "Assistente com IA no topo da tela do Windows",
+    "longDescription": "Jarvis é um assistente pessoal com IA que vive num notch no topo da tela do Windows: entende voz e texto, toca música no Spotify, cuida da agenda, lê e-mails quando você pede, acha arquivos e mostra clima, uso do PC e FPS.",
+    "windows": {
+      "nsis": {
+        "installMode": "perMachine",
+        "languages": [
+          "PortugueseBR",
+          "English"
+        ],
+        "installerHooks": "nsis/hooks.nsh",
+        "displayLanguageSelector": false
+      }
+    }
+  }
+}
