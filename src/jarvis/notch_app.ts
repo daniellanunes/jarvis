@@ -3718,7 +3718,9 @@ export async function startJarvisNotch(root: HTMLElement) {
     if (st) {
       const changed = JSON.stringify(st) !== JSON.stringify(wakeStatus);
       wakeStatus = st;
-      Voice.setLocalWake(st.active);
+      // During an enrollment the model is gone (not "active"), but the cloud
+      // listener must stay off or it takes the samples for calls.
+      if (!enroll) Voice.setLocalWake(st.active);
       // Ajustes shows it: redraw (not during an enrollment, which drives itself).
       if (changed && expanded && activeTab === "settings" && !enroll) render();
     }

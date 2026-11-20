@@ -202,7 +202,7 @@ impl Default for Settings {
             jarvis_mic_sensitivity: "alta".into(),
             jarvis_mic_name: String::new(),
             jarvis_wake_engine: "local".into(),
-            jarvis_wake_threshold: 0.45,
+            jarvis_wake_threshold: 0.5,
         }
     }
 }

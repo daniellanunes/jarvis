@@ -16,10 +16,12 @@
 use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::collections::VecDeque;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
+use tokio::sync::oneshot;
 
 use rustpotter::{Rustpotter, RustpotterConfig, WakewordLoad, WakewordRef, WakewordRefBuildFromBuffers, WakewordSave};
 
@@ -264,8 +266,9 @@ fn open_mic(tx: Sender<Vec<f32>>) -> Result<(cpal::Stream, u32, String), String>
 enum Mode {
     /// Spotting "Jarvis".
     Idle,
-    /// Recording the command after it.
-    Command { audio: Vec<f32>, end: EndOfSpeech },
+    /// Recording the command after it. `verify` answers whether the audio
+    /// that triggered was really "Jarvis" (None for push to talk).
+    Command { audio: Vec<f32>, end: EndOfSpeech, verify: Option<oneshot::Receiver<bool>> },
     /// Recording one enrollment sample.
     Sample { audio: Vec<f32>, end: EndOfSpeech, reply: Sender<Result<Vec<u8>, String>> },
 }
@@ -280,9 +283,17 @@ struct VoiceLocal {
     error: String,
 }
 
-fn transcribe_and_emit(app: &AppHandle, audio: Vec<f32>) {
+fn transcribe_and_emit(app: &AppHandle, audio: Vec<f32>, verify: Option<oneshot::Receiver<bool>>) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
+        // Usually decided long ago (it started when the name was heard). The
+        // notch shows nothing until the name is confirmed.
+        if let Some(rx) = verify {
+            if rx.await == Ok(false) {
+                crate::log::line("voice: comando descartado (não era \"Jarvis\")");
+                return;
+            }
+        }
         emit_state(&app, "transcribing");
         let wav = wav_bytes(&audio);
         let b64 = base64(&wav);
@@ -294,6 +305,63 @@ fn transcribe_and_emit(app: &AppHandle, audio: Vec<f32>) {
         let _ = app.emit_to(crate::island::WINDOW_LABEL, "voice-local", msg);
         emit_state(&app, "idle");
     });
+}
+
+/// Spellings the transcription gives to "Jarvis" (same list as voice.ts).
+const WAKE_VARIANTS: &[&str] = &[
+    "jarvis", "javes", "javis", "javiz", "jarves", "jarviz", "djarvis", "charvis", "gervis", "jarvi", "jarbas", "jarvys", "jervis",
+    "garvis", "harvis", "yarvis",
+    // The start of the name lost in the transcription of a short clip.
+    "arvis", "avis", "jaris",
+];
+
+/// Did the transcription of the triggering audio say "Jarvis"?
+pub fn says_jarvis(text: &str) -> bool {
+    let folded: String = text
+        .to_lowercase()
+        .chars()
+        .map(|c| match c {
+            'á' | 'à' | 'â' | 'ã' | 'ä' => 'a',
+            'é' | 'ê' | 'è' | 'ë' => 'e',
+            'í' | 'ì' | 'î' | 'ï' => 'i',
+            'ó' | 'ò' | 'ô' | 'õ' | 'ö' => 'o',
+            'ú' | 'ù' | 'û' | 'ü' => 'u',
+            'ç' => 'c',
+            c if c.is_alphanumeric() => c,
+            _ => ' ',
+        })
+        .collect();
+    let words: Vec<&str> = folded.split_whitespace().collect();
+    let hit = |w: &str| WAKE_VARIANTS.contains(&w) || w.starts_with("jarv") || w.starts_with("jerv");
+    // "Já vis", "Jar vis": the name split in two.
+    words.iter().any(|w| hit(w)) || words.windows(2).any(|p| hit(&format!("{}{}", p[0], p[1])))
+}
+
+/// Second opinion on a local detection: the audio that triggered is
+/// transcribed while the command is being recorded. Speech or music that only
+/// sounds like the user's "Jarvis" is dropped. Without a transcription
+/// (offline, no quota) the detection stands.
+fn verify_wake(audio: Vec<f32>) -> oneshot::Receiver<bool> {
+    let (tx, rx) = oneshot::channel();
+    tauri::async_runtime::spawn(async move {
+        let ok = match crate::jarvis_brain::jarvis_transcribe(base64(&wav_bytes(&audio)), "audio/wav".into()).await {
+            Ok(text) => {
+                let ok = says_jarvis(&text);
+                crate::log::line(format!(
+                    "voice: conferência do chamado: \"{}\" → {}",
+                    text.trim(),
+                    if ok { "confirmado" } else { "não era \"Jarvis\", ignorado" }
+                ));
+                ok
+            }
+            Err(e) => {
+                crate::log::line(format!("voice: conferência do chamado indisponível ({e}); seguindo"));
+                true
+            }
+        };
+        let _ = tx.send(ok);
+    });
+    rx
 }
 
 fn base64(bytes: &[u8]) -> String {
@@ -324,6 +392,8 @@ fn run_session(app: &AppHandle, ctl: &Receiver<Ctl>) -> Result<(), String> {
     let mut floor = 0.004f32;
     let mut mode = Mode::Idle;
     let mut cooldown_until = Instant::now();
+    // The last ~2 s while spotting: what triggered, for the second opinion.
+    let mut recent: VecDeque<f32> = VecDeque::with_capacity(RATE * 2 + frame);
 
     loop {
         // Requests first.
@@ -335,7 +405,7 @@ fn run_session(app: &AppHandle, ctl: &Receiver<Ctl>) -> Result<(), String> {
                 }
                 Ctl::ListenNow => {
                     emit_state(app, "listening");
-                    mode = Mode::Command { audio: Vec::new(), end: EndOfSpeech::new(floor) };
+                    mode = Mode::Command { audio: Vec::new(), end: EndOfSpeech::new(floor), verify: None };
                 }
             }
         }
@@ -353,14 +423,20 @@ fn run_session(app: &AppHandle, ctl: &Receiver<Ctl>) -> Result<(), String> {
             if matches!(mode, Mode::Idle) {
                 // The room's level, from what is not a detection.
                 floor = floor * 0.97 + level.min(0.05) * 0.03;
+                recent.extend(chunk.iter().copied());
+                while recent.len() > RATE * 2 {
+                    recent.pop_front();
+                }
                 if !detect || Instant::now() < cooldown_until {
                     continue;
                 }
                 if let Some(d) = detector.as_mut() {
                     if let Some(hit) = d.process_samples(chunk) {
                         crate::log::line(format!("voice: \"Jarvis\" local (score {:.2}, média {:.2})", hit.score, hit.avg_score));
-                        emit_state(app, "listening");
-                        mode = Mode::Command { audio: Vec::new(), end: EndOfSpeech::new(floor) };
+                        // Recording starts now, but "listening" shows in the
+                        // notch only once the name is confirmed (step()).
+                        let verify = verify_wake(recent.drain(..).collect());
+                        mode = Mode::Command { audio: Vec::new(), end: EndOfSpeech::new(floor), verify: Some(verify) };
                     }
                 }
                 continue;
@@ -432,7 +508,7 @@ fn run_on_demand(app: &AppHandle, first: Ctl, ctl: &Receiver<Ctl>) -> Result<(),
                 Ctl::RecordSample(reply) => mode = Mode::Sample { audio: Vec::new(), end: EndOfSpeech::new(floor), reply },
                 Ctl::ListenNow => {
                     emit_state(app, "listening");
-                    mode = Mode::Command { audio: Vec::new(), end: EndOfSpeech::new(floor) };
+                    mode = Mode::Command { audio: Vec::new(), end: EndOfSpeech::new(floor), verify: None };
                 }
             }
             continue;
@@ -466,7 +542,22 @@ fn step(app: &AppHandle, mode: &mut Mode, chunk: &[f32], level: f32, ms: f32, fl
             *floor = *floor * 0.97 + level.min(0.05) * 0.03;
             None
         }
-        Mode::Command { audio, end } => {
+        Mode::Command { audio, end, verify } => {
+            // The second opinion: confirmed → show "listening"; not "Jarvis"
+            // → back to spotting, nothing ever shown.
+            if let Some(rx) = verify.as_mut() {
+                match rx.try_recv() {
+                    Ok(false) => {
+                        *mode = Mode::Idle;
+                        return Some(true);
+                    }
+                    Ok(true) | Err(oneshot::error::TryRecvError::Closed) => {
+                        *verify = None;
+                        emit_state(app, "listening");
+                    }
+                    Err(oneshot::error::TryRecvError::Empty) => {}
+                }
+            }
             audio.extend_from_slice(chunk);
             match end.feed(level, ms) {
                 Speech::Going => None,
@@ -479,7 +570,7 @@ fn step(app: &AppHandle, mode: &mut Mode, chunk: &[f32], level: f32, ms: f32, fl
                 Speech::Done | Speech::Limit => {
                     let recorded = std::mem::take(audio);
                     crate::log::line(format!("voice: comando gravado localmente: {:.1} s", recorded.len() as f32 / RATE as f32));
-                    transcribe_and_emit(app, recorded);
+                    transcribe_and_emit(app, recorded, verify.take());
                     *mode = Mode::Idle;
                     Some(true)
                 }
@@ -651,6 +742,16 @@ mod tests {
             }
         }
         assert!((21..=26).contains(&done_after), "{done_after}");
+    }
+
+    #[test]
+    fn the_second_opinion_wants_the_name() {
+        for yes in ["Jarvis.", "Javis", "Ei, Jarvis!", "Já vis", "JARVIS abre o Spotify", "Jervis", "Avis."] {
+            assert!(says_jarvis(yes), "{yes}");
+        }
+        for no in ["", "Música", "Obrigado.", "e aí, tudo bem?", "já vi isso", "Jair", "Javascript"] {
+            assert!(!says_jarvis(no), "{no}");
+        }
     }
 
     #[test]
