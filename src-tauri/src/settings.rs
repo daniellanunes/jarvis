@@ -111,6 +111,17 @@ pub struct Settings {
     pub jarvis_game_other_screen: bool,
     /// The installer's first-run defaults (start with Windows on) were applied.
     pub jarvis_install_defaults_applied: bool,
+    /// Microphone the Jarvis listens to ("" = Windows default for apps,
+    /// "communications" = the default for calls, else a device id).
+    pub jarvis_mic_device: String,
+    /// "alta" | "media" | "baixa": how loud a voice must be to count.
+    pub jarvis_mic_sensitivity: String,
+    /// Name of that microphone (the native side finds it by name).
+    pub jarvis_mic_name: String,
+    /// "local" (the user's enrolled "Jarvis", on the PC) or "cloud".
+    pub jarvis_wake_engine: String,
+    /// Local wake word threshold, 0.3 (easy) – 0.8 (strict).
+    pub jarvis_wake_threshold: f32,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -187,6 +198,11 @@ impl Default for Settings {
             jarvis_ai_failover: true,
             jarvis_game_other_screen: true,
             jarvis_install_defaults_applied: false,
+            jarvis_mic_device: String::new(),
+            jarvis_mic_sensitivity: "alta".into(),
+            jarvis_mic_name: String::new(),
+            jarvis_wake_engine: "local".into(),
+            jarvis_wake_threshold: 0.45,
         }
     }
 }
@@ -484,7 +500,12 @@ mod tests {
   "jarvisMorningBriefing": true,
   "jarvisAiFailover": false,
   "jarvisGameOtherScreen": false,
-  "jarvisInstallDefaultsApplied": true
+  "jarvisInstallDefaultsApplied": true,
+  "jarvisMicDevice": "communications",
+  "jarvisMicSensitivity": "media",
+  "jarvisMicName": "Microfone (3- M8)",
+  "jarvisWakeEngine": "cloud",
+  "jarvisWakeThreshold": 0.625
 }"##;
 
     fn custom() -> Value {
@@ -909,6 +930,11 @@ mod tests {
                 "jarvisAiFailover",
                 "jarvisGameOtherScreen",
                 "jarvisInstallDefaultsApplied",
+                "jarvisMicDevice",
+                "jarvisMicSensitivity",
+                "jarvisMicName",
+                "jarvisWakeEngine",
+                "jarvisWakeThreshold",
             ]
         );
         let _ = std::fs::remove_dir_all(&dir);

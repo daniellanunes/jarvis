@@ -133,6 +133,8 @@ const answers: Record<string, (args: any) => unknown> = {
   secret_present: () => true,
   jarvis_briefing: () => "Bom dia! Agora faz 31 graus, parcialmente nublado, com máxima de 31. Você tem 2 compromissos hoje: o primeiro é Daily às 09:30.",
   media_now: () => null,
+  wakeword_status: () => ({ active: params.has("enrolled"), enrolled: params.has("enrolled"), samples: 0, samplesWanted: 6, error: "" }),
+  wakeword_restart: () => null,
   weather_now: (a: any) => ({ place: a?.city ? `${a.city}, Pernambuco` : "Recife, Pernambuco", temp: 30.9, feels: 35.5, max: 31.3, min: 25.8, rainChance: 40, code: 2, isDay: true, kind: params.get("wkind") ?? "partly", label: "Parcialmente nublado" }),
   boot: () => ({ settings: { jarvisSpotifyClientId: "x", ...(params.has("widgets") ? { jarvisNotchWeather: true, jarvisWeatherCity: "Recife", jarvisNotchPc: true, jarvisNotchFps: true, jarvisNotchNet: true, jarvisGameMode: params.has("game") } : {}) }, screen: { x: 0, y: 0, width: 1920, height: 1080, scale: 1 }, version: "dev", hookPath: "", cursorPoll: true }),
   jarvis_data_load: () => data,

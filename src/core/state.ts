@@ -187,6 +187,15 @@ export interface Settings {
   jarvisAiFailover?: boolean;
   /** Fullscreen game: the notch (with FPS) moves to the other monitor. */
   jarvisGameOtherScreen?: boolean;
+  /** "" = Windows default for apps, "communications" = default for calls, else a device id. */
+  jarvisMicDevice?: string;
+  jarvisMicSensitivity?: "alta" | "media" | "baixa";
+  /** Name of that microphone (the native wake word finds it by name). */
+  jarvisMicName?: string;
+  /** "local": the enrolled "Jarvis" spotted on the PC; "cloud": transcribed sentences. */
+  jarvisWakeEngine?: "local" | "cloud";
+  /** Local wake word: 0.35 (easier) – 0.7 (stricter). */
+  jarvisWakeThreshold?: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -235,6 +244,11 @@ export const DEFAULT_SETTINGS: Settings = {
   jarvisMorningBriefing: false,
   jarvisAiFailover: true,
   jarvisGameOtherScreen: true,
+  jarvisMicDevice: "",
+  jarvisMicSensitivity: "alta",
+  jarvisMicName: "",
+  jarvisWakeEngine: "local",
+  jarvisWakeThreshold: 0.45,
 };
 
 type Listener = () => void;

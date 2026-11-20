@@ -1,0 +1,18 @@
+Conheça o Jarvis 👋
+
+Um assistente com IA que mora no topo da tela do Windows.
+Você fala ou digita — ele faz:
+
+🎵 toca a música exata no Spotify
+📅 cuida da sua agenda e te avisa na hora certa
+📧 lê e responde e-mails só quando você pede
+📂 acha seus arquivos e anota no Obsidian
+🎮 mostra FPS, clima, internet e uso do PC
+
+Grátis, de código aberto e com as suas próprias contas de IA.
+Seus dados ficam no seu PC.
+
+⬇️ Baixe pelo link na bio
+github.com/daniellanunes/jarvis
+
+#jarvis #inteligenciaartificial #ia #windows #produtividade #setupgamer #opensource #programacao #tecnologia #assistentevirtual

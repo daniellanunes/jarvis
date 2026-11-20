@@ -314,6 +314,23 @@ export const Bridge = {
   weatherNow: (city?: string) => callOrThrow<WeatherNow>("weather_now", { city: city ?? null }),
   onPcMetrics: (fn: (m: PcMetrics) => void) => onEvent<PcMetrics>("pc-metrics", fn),
   netSpeedTest: () => callOrThrow<number>("net_speed_test"),
+  // ── Local wake word (the user's enrolled "Jarvis") ─────────────────────────
+  wakewordStatus: () => call<WakeStatus>("wakeword_status"),
+  wakewordRecordSample: (index: number) => callOrThrow<number>("wakeword_record_sample", { index }),
+  wakewordBuild: () => callOrThrow<WakeStatus>("wakeword_build"),
+  wakewordReset: () => call<WakeStatus>("wakeword_reset"),
+  wakewordListenNow: () => callOrThrow<void>("wakeword_listen_now"),
+  wakewordRestart: () => call<void>("wakeword_restart"),
+  onVoiceLocalState: (fn: (state: "listening" | "transcribing" | "idle") => void) => onEvent<"listening" | "transcribing" | "idle">("voice-local-state", fn),
+  onVoiceLocal: (fn: (v: { text: string; error: string }) => void) => onEvent<{ text: string; error: string }>("voice-local", fn),
+  // ── In-app updates (GitHub Releases, signature-checked) ──────────────────
+  updateCheck: () => callOrThrow<UpdateInfo>("update_check"),
+  updateInstall: () => callOrThrow<void>("update_install"),
+  onUpdateAvailable: (fn: (u: UpdateInfo) => void) => onEvent<UpdateInfo>("update-available", fn),
+  onUpdateProgress: (fn: (p: { downloaded: number; total: number; phase: "downloading" | "installing" }) => void) =>
+    onEvent<{ downloaded: number; total: number; phase: "downloading" | "installing" }>("update-progress", fn),
+  /** A line in the app log (voice diagnostics). */
+  jarvisLog: (line: string) => call<void>("jarvis_log", { line }),
   setVolume: (percent: number) => call<string>("jarvis_set_volume", { percent }),
   // ── Gmail: only when the user opens the E-mail tab or asks ───────────────
   gmailList: (query: string) => callOrThrow<MailItem[]>("gmail_list", { query }),
@@ -351,6 +368,22 @@ export interface WeatherNow {
   isDay: boolean;
   kind: "clear" | "partly" | "cloudy" | "fog" | "drizzle" | "rain" | "snow" | "storm";
   label: string;
+}
+
+export interface UpdateInfo {
+  current: string;
+  /** null when already on the latest version. */
+  version: string | null;
+  notes: string;
+  date: string;
+}
+
+export interface WakeStatus {
+  active: boolean;
+  enrolled: boolean;
+  samples: number;
+  samplesWanted: number;
+  error: string;
 }
 
 export interface MailItem {

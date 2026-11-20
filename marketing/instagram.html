@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Jarvis — Reels</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: #09090b; }
+  body { font-family: Inter, "Segoe UI", sans-serif; color: #fafafa; -webkit-font-smoothing: antialiased; position: relative; }
+  .scene { position: absolute; inset: 0; opacity: 0; }
+  .center { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .glow { position: absolute; inset: 0; background:
+    radial-gradient(60% 35% at 50% 18%, rgba(255,255,255,.08), transparent 70%),
+    radial-gradient(50% 30% at 80% 80%, rgba(34,197,94,.12), transparent 70%); }
+  .grid { position: absolute; inset: 0;
+    background-image: linear-gradient(to right, rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.04) 1px, transparent 1px);
+    background-size: 72px 72px; mask-image: radial-gradient(70% 50% at 50% 40%, #000 30%, transparent 80%); }
+  h1 { font-size: 92px; font-weight: 800; letter-spacing: -3px; line-height: 1.04; }
+  h2 { font-size: 76px; font-weight: 750; letter-spacing: -2.4px; line-height: 1.08; }
+  .muted { color: #71717a; }
+  .sub { font-size: 40px; color: #a1a1aa; line-height: 1.35; font-weight: 500; }
+  .eyebrow { font-size: 28px; font-weight: 700; letter-spacing: 6px; text-transform: uppercase; color: #4ade80; }
+  .caption { position: absolute; left: 80px; right: 80px; text-align: center; }
+  .desk { position: absolute; left: 60px; right: 60px; border-radius: 40px; overflow: hidden;
+    background: radial-gradient(120% 80% at 50% 0%, #22324a 0%, #0f1520 55%, #0a0a0d 100%);
+    border: 2px solid rgba(255,255,255,.08); box-shadow: 0 60px 160px -40px rgba(0,0,0,.9); }
+  .desk::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 64px; background: rgba(15,15,20,.85);
+    border-top: 1px solid rgba(255,255,255,.06); }
+  img { display: block; }
+  .shot { border-radius: 26px; border: 2px solid rgba(255,255,255,.1); box-shadow: 0 50px 140px -30px rgba(0,0,0,.95); }
+  .bubble { display: inline-flex; align-items: center; gap: 22px; padding: 28px 40px; border-radius: 999px;
+    background: rgba(255,255,255,.06); border: 2px solid rgba(255,255,255,.1); font-size: 46px; font-weight: 600; }
+  .mic { width: 70px; height: 70px; border-radius: 50%; background: #fafafa; display: flex; align-items: center; justify-content: center; }
+  .wave { display: inline-flex; gap: 8px; align-items: center; height: 46px; }
+  .wave i { width: 8px; border-radius: 4px; background: #4ade80; display: block; }
+  .cursor { display: inline-block; width: 4px; height: 52px; background: #fafafa; margin-left: 4px; vertical-align: middle; }
+  .chip { display: inline-flex; align-items: center; gap: 14px; padding: 18px 30px; border-radius: 999px;
+    background: #fafafa; color: #0b0b0d; font-size: 36px; font-weight: 700; }
+  .pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; }
+  .pill2 { padding: 16px 28px; border-radius: 999px; border: 2px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04);
+    font-size: 34px; font-weight: 600; color: #e4e4e7; }
+  .card { border-radius: 30px; border: 2px solid rgba(255,255,255,.08); background: #0e0e12; padding: 40px 44px; text-align: left; }
+  .card b { display: block; font-size: 40px; margin-top: 18px; }
+  .card span { display: block; font-size: 30px; color: #a1a1aa; margin-top: 8px; line-height: 1.35; }
+  .dot { width: 18px; height: 18px; border-radius: 50%; background: #22c55e; display: inline-block; }
+  .url { font-size: 38px; font-weight: 600; color: #e4e4e7; padding: 22px 34px; border-radius: 22px; border: 2px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); }
+  .frame { position: absolute; left: 60px; width: 960px; border-radius: 28px; overflow: hidden;
+    border: 2px solid rgba(255,255,255,.1); box-shadow: 0 50px 140px -30px rgba(0,0,0,.95); background: #0c0c0f; }
+  .frame img { position: absolute; top: 0; left: 0; height: 100%; width: auto; }
+  .progress { position: absolute; left: 80px; right: 80px; top: 70px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .progress i { display: block; height: 100%; background: rgba(255,255,255,.55); width: 0; }
+</style>
+</head>
+<body>
+  <div class="glow"></div>
+  <div class="grid"></div>
+  <div class="progress"><i id="bar"></i></div>
+
+  <!-- 1. Logo -->
+  <section class="scene center" id="s1">
+    <svg id="logo1" viewBox="0 0 512 512" width="300" height="300" aria-hidden="true">
+      <defs>
+        <linearGradient id="bg1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1c1c21"/><stop offset="1" stop-color="#09090b"/></linearGradient>
+        <linearGradient id="fc1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#e4e4e7"/></linearGradient>
+      </defs>
+      <rect x="8" y="8" width="496" height="496" rx="118" fill="url(#bg1)"/>
+      <rect x="8.5" y="8.5" width="495" height="495" rx="117.5" fill="none" stroke="#fff" stroke-opacity=".12"/>
+      <rect x="112" y="170" width="288" height="204" rx="102" fill="url(#fc1)"/>
+      <g id="eyes1"><ellipse cx="208" cy="272" rx="21" ry="27" fill="#0b0b0d"/><ellipse cx="304" cy="272" rx="21" ry="27" fill="#0b0b0d"/></g>
+      <circle cx="396" cy="150" r="34" fill="#09090b"/><circle id="dot1" cx="396" cy="150" r="22" fill="#22c55e"/>
+    </svg>
+    <h1 id="t1" style="margin-top:56px;font-size:132px;letter-spacing:-5px">Jarvis</h1>
+    <p id="t1b" class="sub" style="margin-top:26px;max-width:820px">Seu assistente com IA<br>no topo da tela do Windows.</p>
+  </section>
+
+  <!-- 2. The notch on a desktop -->
+  <section class="scene" id="s2">
+    <div class="caption" style="top:250px">
+      <div class="eyebrow">O notch</div>
+      <h2 style="margin-top:26px">Ele mora no<br><span class="muted">topo da sua tela.</span></h2>
+    </div>
+    <div class="desk" style="top:700px;height:520px" id="desk2">
+      <img id="pill2" src="../docs/images/notch-pill.png" style="width:930px;margin:0 auto" alt="">
+    </div>
+    <div class="caption" style="top:1300px"><p class="sub">Música, clima, internet e uso do PC<br>— de relance.</p></div>
+  </section>
+
+  <!-- 3. Voice -->
+  <section class="scene" id="s3">
+    <div class="caption" style="top:250px">
+      <div class="eyebrow">Voz ou texto</div>
+      <h2 style="margin-top:26px">É só pedir.</h2>
+    </div>
+    <div class="caption" style="top:600px">
+      <div class="bubble" id="bubble3">
+        <span class="mic"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#0b0b0d" stroke-width="2.2" stroke-linecap="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z M19 10v2a7 7 0 0 1-14 0v-2 M12 19v3"/></svg></span>
+        <span id="typed3"></span><span class="cursor" id="cur3"></span>
+      </div>
+    </div>
+    <div class="desk" style="top:820px;height:400px" id="desk3">
+      <img id="pill3" src="../docs/images/notch-pill.png" style="width:930px;margin:0 auto" alt="">
+    </div>
+    <div class="caption" style="top:1300px"><p class="sub" id="done3">Toca a música <b style="color:#fafafa">exata</b> no Spotify. ✓</p></div>
+  </section>
+
+  <!-- 4. Panel -->
+  <section class="scene" id="s4">
+    <div class="caption" style="top:250px">
+      <div class="eyebrow">O painel</div>
+      <h2 style="margin-top:26px">Clique.<br><span class="muted">Tudo está ali.</span></h2>
+    </div>
+    <div class="frame" id="frame4" style="top:620px;height:820px"><img id="panel4" src="../docs/images/panel-home.png" alt=""></div>
+    <div class="caption" style="top:1500px"><p class="sub">Seu dia de relance: agenda, música,<br>tarefas e projetos.</p></div>
+  </section>
+
+  <!-- 5. Tabs -->
+  <section class="scene" id="s5">
+    <div class="caption" style="top:250px">
+      <div class="eyebrow">Tudo num lugar só</div>
+      <div style="margin-top:34px"><span class="chip" id="chip5">Agenda</span></div>
+    </div>
+    <div class="frame" style="top:500px;height:860px">
+      <img class="tab5" src="../docs/images/panel-agenda.png" alt="">
+      <img class="tab5" src="../docs/images/panel-spotify.png" alt="">
+      <img class="tab5" src="../docs/images/panel-mail.png" alt="">
+      <img class="tab5" src="../docs/images/panel-files.png" alt="">
+      <img class="tab5" src="../docs/images/panel-github.png" alt="">
+    </div>
+    <div class="caption" style="top:1420px"><p class="sub" id="text5" style="font-size:44px;color:#e4e4e7"></p></div>
+  </section>
+
+  <!-- 6. Gamer / widgets -->
+  <section class="scene" id="s6">
+    <div class="caption" style="top:250px">
+      <div class="eyebrow">Para quem joga</div>
+      <h2 style="margin-top:26px">FPS na tela.<br><span class="muted">Sem abrir nada.</span></h2>
+    </div>
+    <div class="caption" style="top:620px">
+      <img id="game6" src="../docs/images/notch-game.png" style="width:520px;margin:0 auto" alt="">
+    </div>
+    <div class="caption" style="top:1250px">
+      <img id="widgets6" src="../docs/images/notch-pill.png" style="width:920px;margin:0 auto" alt="">
+    </div>
+    <div class="caption" style="top:900px">
+      <div class="pills" id="pills6">
+        <span class="pill2">🎮 Modo jogo</span><span class="pill2">🌤 Clima</span><span class="pill2">📶 Internet</span>
+        <span class="pill2">🧠 CPU · GPU · RAM</span><span class="pill2">🔔 Lembretes</span><span class="pill2">🎵 Qualquer app</span>
+      </div>
+    </div>
+    <div class="caption" style="top:1420px"><p class="sub">E no fim da partida: tempo, FPS médio e 1% low.</p></div>
+  </section>
+
+  <!-- 7. Privacy -->
+  <section class="scene" id="s7">
+    <div class="caption" style="top:250px">
+      <div class="eyebrow">Privacidade</div>
+      <h2 style="margin-top:26px">Seu assistente.<br><span class="muted">Seus dados.</span></h2>
+    </div>
+    <div style="position:absolute;left:80px;right:80px;top:720px;display:grid;gap:26px" id="cards7">
+      <div class="card"><span class="dot"></span><b>Tudo no seu PC</b><span>Sem servidor do Jarvis guardando nada.</span></div>
+      <div class="card"><span class="dot"></span><b>Gmail só quando você pede</b><span>Nada é enviado sem você tocar em Permitir.</span></div>
+      <div class="card"><span class="dot"></span><b>Suas próprias contas de IA</b><span>Gemini, Groq, OpenAI, Claude ou Ollama.</span></div>
+    </div>
+  </section>
+
+  <!-- 8. CTA -->
+  <section class="scene center" id="s8">
+    <svg viewBox="0 0 512 512" width="220" height="220" aria-hidden="true">
+      <rect x="8" y="8" width="496" height="496" rx="118" fill="url(#bg1)"/>
+      <rect x="8.5" y="8.5" width="495" height="495" rx="117.5" fill="none" stroke="#fff" stroke-opacity=".12"/>
+      <rect x="112" y="170" width="288" height="204" rx="102" fill="url(#fc1)"/>
+      <ellipse cx="208" cy="272" rx="21" ry="27" fill="#0b0b0d"/><ellipse cx="304" cy="272" rx="21" ry="27" fill="#0b0b0d"/>
+      <circle cx="396" cy="150" r="34" fill="#09090b"/><circle cx="396" cy="150" r="22" fill="#22c55e"/>
+    </svg>
+    <h1 style="margin-top:48px">Jarvis</h1>
+    <p class="sub" style="margin-top:22px">Grátis e de código aberto.<br>Para Windows 10 e 11.</p>
+    <div style="margin-top:64px" id="cta8"><span class="chip" style="font-size:40px;padding:24px 44px">⬇ Baixe agora — link na bio</span></div>
+    <p class="url" style="margin-top:44px">github.com/daniellanunes/jarvis</p>
+  </section>
+
+<script>
+  const DURATION = 28.5;
+  const clamp = (v) => Math.max(0, Math.min(1, v));
+  const k = (t, a, b) => clamp((t - a) / (b - a));
+  const out = (x) => 1 - Math.pow(1 - x, 3);
+  const inOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+  const $ = (id) => document.getElementById(id);
+  // [id, start, end]
+  const SCENES = [["s1", 0, 3.2], ["s2", 3.2, 7], ["s3", 7, 11], ["s4", 11, 15], ["s5", 15, 19.4], ["s6", 19.4, 22.8], ["s7", 22.8, 25.6], ["s8", 25.6, 30]];
+  const TABS = [
+    ["Agenda", "Google Agenda com lembretes que avisam."],
+    ["Spotify", "Seu Spotify, do jeito que você conhece."],
+    ["E-mail", "Gmail só quando você pede."],
+    ["Arquivos", "“Acha o PDF do contrato de março.”"],
+    ["GitHub", "PRs, reviews e CI falhando."],
+  ];
+  const PHRASE = "“Jarvis, toca Dawn FM”";
+
+  function setT(t) {
+    $("bar").style.width = `${(Math.min(t, DURATION) / DURATION) * 100}%`;
+    for (const [id, a, b] of SCENES) {
+      const el = $(id);
+      const o = Math.min(out(k(t, a, a + 0.45)), 1 - k(t, b - 0.35, b));
+      el.style.opacity = o;
+      el.style.transform = `translateY(${(1 - out(k(t, a, a + 0.6))) * 40}px)`;
+    }
+
+    // 1. logo pops, eyes blink, text rises
+    const p1 = out(k(t, 0.1, 0.9));
+    $("logo1").style.transform = `scale(${0.6 + 0.4 * p1})`;
+    $("logo1").style.opacity = p1;
+    const blink = t > 1.6 && t < 1.75 ? 0.15 : 1;
+    $("eyes1").style.transform = `translateY(${(1 - blink) * 272}px) scaleY(${blink})`;
+    $("eyes1").style.transformOrigin = "256px 272px";
+    $("t1").style.opacity = out(k(t, 0.6, 1.2));
+    $("t1").style.transform = `translateY(${(1 - out(k(t, 0.6, 1.2))) * 30}px)`;
+    $("t1b").style.opacity = out(k(t, 1.0, 1.6));
+
+    // 2. the notch slides down from the top of the desktop
+    const p2 = out(k(t, 3.8, 4.6));
+    $("pill2").style.transform = `translateY(${(p2 - 1) * 130}px)`;
+    $("pill2").style.opacity = p2;
+
+    // 3. typing, then the notch shows the song
+    const typed = Math.round(PHRASE.length * k(t, 7.4, 9.0));
+    $("typed3").textContent = PHRASE.slice(0, typed);
+    $("cur3").style.opacity = t < 9.3 && Math.floor(t * 3) % 2 === 0 ? 1 : 0;
+    const p3 = out(k(t, 9.2, 9.8));
+    $("pill3").style.opacity = p3;
+    $("pill3").style.transform = `translateY(${(p3 - 1) * 110}px)`;
+    $("desk3").style.boxShadow = `0 0 ${80 * p3}px ${-10 + 20 * p3}px rgba(34,197,94,${0.25 * p3}), 0 60px 160px -40px rgba(0,0,0,.9)`;
+    $("done3").style.opacity = out(k(t, 9.8, 10.3));
+
+    // 4. the panel grows from the notch
+    const p4 = out(k(t, 11.3, 12.3));
+    // 820 px tall → 1373 px wide: pan from the sidebar to the right edge.
+    const pan4 = inOut(k(t, 12.0, 14.8)) * (1373 - 960);
+    $("frame4").style.transform = `scale(${0.6 + 0.4 * p4})`;
+    $("frame4").style.transformOrigin = "50% 0";
+    $("frame4").style.opacity = p4;
+    $("panel4").style.transform = `translateX(${-pan4}px)`;
+
+    // 5. quick cuts between tabs
+    const span = 4.4 / TABS.length;
+    const idx = Math.min(TABS.length - 1, Math.max(0, Math.floor((t - 15) / span)));
+    document.querySelectorAll(".tab5").forEach((img, i) => {
+      const a = 15 + i * span;
+      const vis = i === idx ? 1 : 0;
+      const local = k(t, a, a + 0.25);
+      img.style.opacity = i === idx ? out(local) : vis;
+      // 860 px tall → 1440 px wide: a slow pan while it is on screen.
+      const pan = inOut(k(t, a, a + span)) * (1440 - 960) * 0.75;
+      img.style.transform = `translateX(${-pan}px) scale(${i === idx ? 1.04 - 0.04 * out(local) : 1})`;
+      img.style.transformOrigin = "0 0";
+    });
+    $("chip5").textContent = TABS[idx][0];
+    $("text5").textContent = TABS[idx][1];
+
+    // 6. game badge pops, pills appear one by one
+    const p6 = out(k(t, 19.7, 20.3));
+    $("game6").style.transform = `scale(${0.6 + 0.4 * p6})`;
+    $("game6").style.opacity = p6;
+    const w6 = out(k(t, 21.0, 21.6));
+    $("widgets6").style.opacity = w6;
+    $("widgets6").style.transform = `translateY(${(1 - w6) * 30}px)`;
+    document.querySelectorAll("#pills6 .pill2").forEach((el, i) => {
+      const q = out(k(t, 20.2 + i * 0.16, 20.6 + i * 0.16));
+      el.style.opacity = q;
+      el.style.transform = `translateY(${(1 - q) * 24}px)`;
+    });
+
+    // 7. cards in sequence
+    document.querySelectorAll("#cards7 .card").forEach((el, i) => {
+      const q = out(k(t, 23.1 + i * 0.3, 23.6 + i * 0.3));
+      el.style.opacity = q;
+      el.style.transform = `translateX(${(1 - q) * 60}px)`;
+    });
+
+    // 8. CTA pulse
+    const pulse = 1 + 0.03 * Math.sin(Math.max(0, t - 26.2) * 5);
+    $("cta8").style.transform = `scale(${pulse})`;
+  }
+
+  window.setT = setT;
+  window.ready = Promise.all([
+    document.fonts.ready,
+    ...[...document.images].map((i) => (i.complete ? Promise.resolve() : new Promise((r) => (i.onload = i.onerror = r)))),
+  ]);
+  setT(Number(new URLSearchParams(location.search).get("t") ?? 0));
+</script>
+</body>
+</html>

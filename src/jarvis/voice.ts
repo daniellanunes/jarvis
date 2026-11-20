@@ -7,7 +7,30 @@ import { Bridge } from "../core/bridge";
 import { Sound } from "../core/sound";
 import { State } from "../core/state";
 
-export type VoiceState = "idle" | "wake" | "recording" | "transcribing";
+/** "listening": "Jarvis" was heard alone — the next sentence is the command. */
+export type VoiceState = "idle" | "wake" | "listening" | "recording" | "transcribing";
+
+/** Which microphone, as getUserMedia constraints (Ajustes → IA & Voz). */
+function micConstraints(): MediaTrackConstraints {
+  const id = (State.settings.jarvisMicDevice ?? "").trim();
+  const base: MediaTrackConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+  // "communications": the device Windows uses for calls (often the headset).
+  return id ? { ...base, deviceId: { exact: id } } : base;
+}
+
+/** How loud a voice must be, per sensitivity: [floor, factor over the room noise, cap]. */
+export function voiceThreshold(noiseFloor: number, sensitivity: string | undefined, strict = false): number {
+  const [min, factor, cap] =
+    sensitivity === "baixa" ? [0.01, 3, 0.035] : sensitivity === "media" ? [0.007, 2.5, 0.022] : [0.004, 2, 0.014];
+  const t = Math.max(min, Math.min(cap, noiseFloor * factor + min / 2));
+  // Media playing on the speakers: a bit stricter, so they do not wake it.
+  return strict ? Math.min(cap * 1.6, t * 1.5) : t;
+}
+
+/** A line in %LOCALAPPDATA%\OpenJarvis\openjarvis.log, to see what the voice heard. */
+function vlog(line: string) {
+  void Bridge.jarvisLog(`voice: ${line}`).catch(() => {});
+}
 
 export class JarvisVoice {
   private mediaRecorder: MediaRecorder | null = null;
@@ -25,9 +48,75 @@ export class JarvisVoice {
   private wakeZeroGain: GainNode | null = null;
   private wakeBusy = false;
   private wakeStarting = false;
-  private pendingWakeBlob: Blob | null = null;
+  private pendingWakeBlob: Utterance | null = null;
+  /** Background checks paused until then (all transcription keys at their limit). */
+  private pauseUntil = 0;
+  /** Media is playing (YouTube, Spotify…): only a louder, closer voice counts. */
+  mediaPlaying = false;
+  /** A short message for the notch ("limite de transcrição"…). */
+  onNotice?: (text: string) => void;
+  /** Live microphone level and the current threshold (the meter in Ajustes). */
+  onLevel?: (level: number, threshold: number) => void;
+
+  /** Microphone or sensitivity changed: listen again with the new setup. */
+  restart() {
+    this.stopWakeVad();
+    this.syncWakeWord();
+  }
+
+  /** The native side spots the enrolled "Jarvis" (wakeword.rs): this side then
+   *  does not listen in the background at all. */
+  localWake = false;
+
+  setLocalWake(on: boolean) {
+    if (this.localWake === on) return;
+    this.localWake = on;
+    vlog(on ? "reconhecimento local ligado (cadastro de voz)" : "reconhecimento na nuvem");
+    if (on) {
+      // The cloud listener stops — including a "listening" it had open.
+      this.endListening();
+      this.stopWakeVad();
+    }
+    this.syncWakeWord();
+  }
+
+  /** Events of the native wake word: state changes and the transcribed command. */
+  attachLocal() {
+    void Bridge.onVoiceLocalState((st) => {
+      if (st === "listening") {
+        Sound.play("pop");
+        this.setState("listening", "Fala…");
+      } else if (st === "transcribing") {
+        this.setState("transcribing", "Transcrevendo…");
+      } else if (this.state === "listening" || this.state === "transcribing") {
+        this.setState("idle");
+      }
+    });
+    void Bridge.onVoiceLocal(({ text, error }) => {
+      if (this.state === "listening" || this.state === "transcribing") this.setState("idle");
+      if (error) {
+        vlog(`erro na transcrição (local): ${error.slice(0, 200)}`);
+        if (/429|quota|limite|rate/i.test(error)) this.onNotice?.("Limite de transcrição atingido. Tente de novo em um minuto.");
+        return;
+      }
+      const raw = text.trim();
+      const m = matchWakeWord(raw, State.settings.jarvisWakeWord);
+      const command = (m ? raw.slice(m.endIndex) : raw).replace(/^[,.\s:!?-]+/, "").trim();
+      if (!command || isNoise(command)) {
+        vlog(`nada entendido depois de "Jarvis"${raw ? `: "${raw.slice(0, 80)}"` : ""}`);
+        return;
+      }
+      vlog(`comando: "${command.slice(0, 120)}"`);
+      this.onCommand?.(command);
+    });
+  }
 
   state: VoiceState = "idle";
+  /** Until when (performance.now()) a sentence without "Jarvis" counts as the command. */
+  private listenUntil = 0;
+  /** Set when "Jarvis" was heard alone: the audio thread starts recording the command. */
+  private listenArmed = false;
+  private listenTimer: number | null = null;
   onStateChange?: (state: VoiceState, detail?: string) => void;
   onCommand?: (text: string) => void;
 
@@ -44,7 +133,8 @@ export class JarvisVoice {
 
   /** Starts or stops the background VAD wake-word listener based on settings. */
   syncWakeWord() {
-    const enabled = State.settings.jarvisWakeWordEnabled ?? true;
+    // The native wake word is listening: nothing to do here.
+    const enabled = (State.settings.jarvisWakeWordEnabled ?? true) && !this.localWake;
     if (
       enabled &&
       !this.wakeProcessor &&
@@ -62,13 +152,14 @@ export class JarvisVoice {
     if (this.wakeProcessor || this.wakeStarting || !navigator.mediaDevices?.getUserMedia) return;
     this.wakeStarting = true;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      const stream = await navigator.mediaDevices
+        .getUserMedia({ audio: micConstraints() })
+        .catch((err) => {
+          vlog(`microfone escolhido indisponível (${String(err).slice(0, 80)}); usando o padrão`);
+          return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+        });
+      const label = stream.getAudioTracks()[0]?.label ?? "?";
+      vlog(`ouvindo pelo microfone: ${label} (sensibilidade ${State.settings.jarvisMicSensitivity ?? "alta"})`);
       // If stopWakeVad() was called while waiting for getUserMedia, abort cleanly
       if (!this.wakeStarting) {
         for (const t of stream.getTracks()) t.stop();
@@ -105,8 +196,39 @@ export class JarvisVoice {
       let silenceSince = 0;
       let noiseFloor = 0.004;
 
+      // Everything heard since the last sentence ended (up to 4 s): a command
+      // said right after "Jarvis", while the name was still being checked.
+      let tail: Float32Array[] = [];
+      let tailSamples = 0;
+      const tailMax = Math.round(sampleRate * 4);
+
+      // The command after "Jarvis": one continuous recording, not sentences.
+      let cmdChunks: Float32Array[] = [];
+      let cmdSamples = 0;
+      let cmdStart = 0;
+      let cmdHeard = false;
+      let cmdSilence = 0;
+      /** The loudest the user's own voice got in this recording (smoothed). */
+      let cmdPeak = 0;
+
+      const finishCommand = (reason: string) => {
+        const chunks = cmdChunks;
+        const total = cmdSamples;
+        cmdChunks = [];
+        cmdSamples = 0;
+        vlog(`gravação do comando: ${(total / sampleRate).toFixed(1)} s (${reason})`);
+        if (!cmdHeard && reason === "tempo") {
+          vlog("nenhum comando depois de \"Jarvis\"");
+          this.endListening();
+          return;
+        }
+        void this.finishListening(encodeWav16k(chunks, total, sampleRate));
+      };
+
       const flushUtterance = () => {
         if (!capturing) return;
+        tail = [];
+        tailSamples = 0;
         capturing = false;
         silenceSince = 0;
         const dur = performance.now() - speakingSince;
@@ -115,9 +237,15 @@ export class JarvisVoice {
         speechChunks = [];
         speechSamples = 0;
 
-        if (dur >= 180 && totalSamples > sampleRate * 0.25) {
-          const wav = encodeWav16k(collected, totalSamples, sampleRate);
-          void this.enqueueWakeBlob(wav);
+        // Under 0.3 s it is a click or a cough ("Jarvis" alone takes ~0.4 s).
+        if (dur >= 300 && totalSamples > sampleRate * 0.3) {
+          if (performance.now() < this.pauseUntil) return;
+          // "Jarvis" is at the start: only the first 2.5 s go out to be checked,
+          // the whole sentence only once the wake word is there.
+          const headSamples = Math.min(totalSamples, Math.round(sampleRate * 2.5));
+          const full = encodeWav16k(collected, totalSamples, sampleRate);
+          const head = headSamples < totalSamples ? encodeWav16k(collected, headSamples, sampleRate) : full;
+          void this.enqueueWakeBlob({ head, full });
         }
       };
 
@@ -128,8 +256,8 @@ export class JarvisVoice {
           speechSamples = 0;
           return;
         }
-        // Don't listen to ourselves while TTS is playing
-        if (this.currentAudio && !this.currentAudio.paused) {
+        // Don't listen to ourselves while TTS is playing (neural voice or the Windows fallback)
+        if ((this.currentAudio && !this.currentAudio.paused) || ("speechSynthesis" in window && window.speechSynthesis.speaking)) {
           capturing = false;
           speechChunks = [];
           speechSamples = 0;
@@ -137,6 +265,47 @@ export class JarvisVoice {
         }
 
         const input = ev.inputBuffer.getChannelData(0);
+        if (this.state === "listening" || this.listenArmed) {
+          const frame = new Float32Array(input);
+          let e = 0;
+          for (let i = 0; i < frame.length; i++) e += frame[i] * frame[i];
+          const level = Math.sqrt(e / frame.length);
+          const t = performance.now();
+          if (this.listenArmed) {
+            // Start from what was said since "Jarvis" ended.
+            this.listenArmed = false;
+            cmdChunks = [...tail];
+            cmdSamples = tailSamples;
+            cmdStart = t;
+            cmdHeard = false;
+            cmdSilence = 0;
+            cmdPeak = 0;
+            capturing = false;
+            speechChunks = [];
+            speechSamples = 0;
+          }
+          cmdChunks.push(frame);
+          cmdSamples += frame.length;
+          // Relative to the room: a voice is clearly above the noise floor.
+          const base = voiceThreshold(noiseFloor, State.settings.jarvisMicSensitivity);
+          this.onLevel?.(level, base);
+          // Once the user spoke, "silence" is well below *their* voice — so the
+          // room talking behind them does not keep the recording open.
+          if (level > base) cmdPeak = Math.max(cmdPeak * 0.995, level);
+          const speaking = level > Math.max(base, cmdHeard ? cmdPeak * 0.3 : 0);
+          if (speaking) {
+            cmdHeard = true;
+            cmdSilence = 0;
+          } else if (cmdHeard) {
+            if (cmdSilence === 0) cmdSilence = t;
+            else if (t - cmdSilence >= 900) finishCommand("silêncio");
+          }
+          if (cmdSamples > 0 && t - cmdStart > (cmdHeard ? 12000 : 8000)) finishCommand(cmdHeard ? "máximo" : "tempo");
+          return;
+        }
+        tail.push(new Float32Array(input));
+        tailSamples += input.length;
+        while (tailSamples > tailMax && tail.length > 1) tailSamples -= tail.shift()!.length;
         let sum = 0;
         for (let i = 0; i < input.length; i++) {
           const s = input[i];
@@ -146,7 +315,10 @@ export class JarvisVoice {
         const now = performance.now();
 
         // Adaptive threshold: sensitive to quiet speech while tracking room noise floor
-        const threshold = Math.max(0.007, Math.min(0.03, noiseFloor * 2.5 + 0.0035));
+        // With media playing, a moderately stricter threshold so the speakers do
+        // not keep waking it (the command after "Jarvis" is recorded above).
+        const threshold = voiceThreshold(noiseFloor, State.settings.jarvisMicSensitivity, this.mediaPlaying);
+        this.onLevel?.(rms, threshold);
         const copy = new Float32Array(input);
 
         if (rms > threshold) {
@@ -179,7 +351,8 @@ export class JarvisVoice {
             speechChunks.push(copy);
             speechSamples += copy.length;
             if (silenceSince === 0) silenceSince = now;
-            else if (now - silenceSince >= 480) {
+            // A short breath ("Jarvis… toca X") is not the end of the sentence.
+            else if (now - silenceSince >= 800) {
               flushUtterance();
             }
           }
@@ -222,7 +395,7 @@ export class JarvisVoice {
     }
   }
 
-  private async enqueueWakeBlob(blob: Blob) {
+  private async enqueueWakeBlob(blob: Utterance) {
     if (this.wakeBusy) {
       // Keep the latest utterance so rapid retries are never silently dropped
       this.pendingWakeBlob = blob;
@@ -230,13 +403,10 @@ export class JarvisVoice {
     }
     this.wakeBusy = true;
     try {
-      let current: Blob | null = blob;
+      let current: Utterance | null = blob;
       while (current && this.state !== "recording" && this.state !== "transcribing") {
-        const triggered = await this.checkWakeBlob(current);
-        if (triggered) {
-          this.pendingWakeBlob = null;
-          break;
-        }
+        await this.checkWakeBlob(current);
+        // The next sentence (often the command after "Jarvis") is checked too.
         current = this.pendingWakeBlob;
         this.pendingWakeBlob = null;
       }
@@ -245,28 +415,103 @@ export class JarvisVoice {
     }
   }
 
-  private async checkWakeBlob(blob: Blob): Promise<boolean> {
+  private async transcribeWav(blob: Blob): Promise<string | null> {
     try {
       const base64 = await blobToBase64(blob);
-      const raw = (await Bridge.jarvisTranscribe(base64, "audio/wav")).trim();
-      if (!raw) return false;
-
-      const match = matchWakeWord(raw, State.settings.jarvisWakeWord);
-      if (!match) return false;
-
-      const after = raw.slice(match.endIndex).replace(/^[,.\s:!?-]+/, "").trim();
-      if (after.length >= 2) {
-        Sound.play("pop");
-        this.onCommand?.(after);
-      } else {
-        // User just said "Ei, Jarvis" -> open active command recording!
-        await this.startRecording();
+      return (await Bridge.jarvisTranscribe(base64, "audio/wav")).trim();
+    } catch (err) {
+      const msg = String(err);
+      vlog(`erro na transcrição: ${msg.slice(0, 200)}`);
+      if (/429|quota|limite|rate/i.test(msg)) {
+        // Every key is at its limit: stop sending for a while, and say so once.
+        this.pauseUntil = performance.now() + 30000;
+        this.onNotice?.("Limite de transcrição atingido. Volto a ouvir em 30 s — ou use o botão do microfone depois.");
       }
-      return true;
-    } catch {
-      // Ignore silent/transient transcription errors during background wake check
+      return null;
+    }
+  }
+
+  private async checkWakeBlob(utt: Utterance): Promise<boolean> {
+    const following = this.state === "listening" && performance.now() < this.listenUntil;
+    // Waiting for the command: the whole sentence. Otherwise its first seconds.
+    let raw = (await this.transcribeWav(following ? utt.full : utt.head)) ?? "";
+    if (!following && raw && utt.head !== utt.full && matchWakeWord(raw, State.settings.jarvisWakeWord)) {
+      raw = (await this.transcribeWav(utt.full)) ?? raw;
+    }
+    if (!raw || isNoise(raw)) {
+      if (raw) vlog(`ignorado (ruído): "${raw.slice(0, 60)}"`);
       return false;
     }
+
+    const match = matchWakeWord(raw, State.settings.jarvisWakeWord);
+    if (!match && !following) {
+      vlog(`sem "Jarvis": "${raw.slice(0, 80)}"`);
+      return false;
+    }
+    const command = (match ? raw.slice(match.endIndex) : raw).replace(/^[,.\s:!?-]+/, "").trim();
+    if (command.length >= 2) {
+      vlog(`comando: "${command.slice(0, 120)}"`);
+      this.endListening();
+      Sound.play("pop");
+      this.onCommand?.(command);
+    } else {
+      // Just "Jarvis": the next sentence (within 7 s) is the command — the
+      // microphone stays open, so nothing said right after is lost.
+      vlog(`"Jarvis" — ouvindo o comando`);
+      Sound.play("pop");
+      this.beginListening();
+    }
+    return true;
+  }
+
+  private beginListening() {
+    vlog(`ouvindo o comando (mídia tocando: ${this.mediaPlaying ? "sim" : "não"})`);
+    // Safety net only: the audio thread ends the recording (silence / 8–12 s).
+    this.armListening(14000);
+    this.listenArmed = true;
+    this.setState("listening", "Fala…");
+  }
+
+  /** Transcribes the recording made after "Jarvis" and runs it. */
+  private async finishListening(wav: Blob) {
+    this.listenUntil = 0;
+    if (this.listenTimer !== null) {
+      clearTimeout(this.listenTimer);
+      this.listenTimer = null;
+    }
+    this.setState("transcribing", "Transcrevendo…");
+    const raw = (await this.transcribeWav(wav)) ?? "";
+    this.setState("idle");
+    const m = matchWakeWord(raw, State.settings.jarvisWakeWord);
+    const command = (m ? raw.slice(m.endIndex) : raw).replace(/^[,.\s:!?-]+/, "").trim();
+    if (!command || isNoise(command)) {
+      vlog(`nada entendido depois de "Jarvis"${raw ? `: "${raw.slice(0, 80)}"` : ""}`);
+      return;
+    }
+    vlog(`comando: "${command.slice(0, 120)}"`);
+    Sound.play("pop");
+    this.onCommand?.(command);
+  }
+
+  private armListening(ms: number) {
+    this.listenUntil = performance.now() + ms;
+    if (this.listenTimer !== null) clearTimeout(this.listenTimer);
+    this.listenTimer = window.setTimeout(() => {
+      if (this.state === "listening") {
+        vlog("nenhum comando depois de \"Jarvis\"");
+        this.endListening();
+      }
+    }, ms + 300);
+  }
+
+  private endListening() {
+    this.listenUntil = 0;
+    this.listenArmed = false;
+    if (this.listenTimer !== null) {
+      clearTimeout(this.listenTimer);
+      this.listenTimer = null;
+    }
+    if (this.state === "listening") this.setState("idle");
   }
 
   /** Toggles push-to-talk recording (used by mic button or hotkey). */
@@ -280,6 +525,7 @@ export class JarvisVoice {
   }
 
   async startRecording() {
+    this.endListening();
     this.stopWakeVad();
     if (this.currentAudio) {
       this.currentAudio.pause();
@@ -290,7 +536,9 @@ export class JarvisVoice {
     if (!navigator.mediaDevices?.getUserMedia) return;
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices
+        .getUserMedia({ audio: micConstraints() })
+        .catch(() => navigator.mediaDevices.getUserMedia({ audio: true }));
       this.mediaStream = stream;
       this.chunks = [];
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
@@ -339,7 +587,9 @@ export class JarvisVoice {
         }
         const rms = Math.sqrt(sum / data.length);
         const now = performance.now();
-        if (rms > 0.01) {
+        const limit = voiceThreshold(0.003, State.settings.jarvisMicSensitivity);
+        this.onLevel?.(rms, limit);
+        if (rms > limit) {
           heardSpeech = true;
           silentSince = 0;
         } else if (heardSpeech) {
@@ -402,11 +652,17 @@ export class JarvisVoice {
     this.setState("transcribing", "Transcrevendo…");
     try {
       const base64 = await blobToBase64(blob);
-      const text = await Bridge.jarvisTranscribe(base64, mimeType);
+      const text = (await Bridge.jarvisTranscribe(base64, mimeType)).trim();
       this.setState("idle");
       this.syncWakeWord();
-      if (text.trim()) this.onCommand?.(text.trim());
+      if (text && !isNoise(text)) {
+        vlog(`comando (microfone): "${text.slice(0, 120)}"`);
+        this.onCommand?.(text);
+      } else {
+        vlog(`nada entendido (microfone)${text ? `: "${text.slice(0, 60)}"` : ""}`);
+      }
     } catch (err) {
+      vlog(`erro na transcrição (microfone): ${String(err).slice(0, 200)}`);
       this.setState("idle", String(err));
       this.syncWakeWord();
     }
@@ -456,6 +712,29 @@ export class JarvisVoice {
   }
 }
 
+/** One sentence heard in the background: its first seconds and the whole of it. */
+interface Utterance {
+  head: Blob;
+  full: Blob;
+}
+
+/** What Whisper "hears" in silence, music or noise — never a command. */
+export function isNoise(text: string): boolean {
+  const t = text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .trim();
+  if (t.length < 2) return true;
+  const junk = [
+    "obrigado", "obrigada", "obrigado por assistir", "obrigada por assistir", "legendas pela comunidade amara org",
+    "legenda adriana zanotto", "tchau", "e ai", "hum", "uhum", "ah", "oh", "musica", "som", "aplausos", "risos",
+    "inscreva se no canal", "thank you", "thanks for watching", "you",
+  ];
+  return junk.includes(t) || /^(legendas?|subtitles?) /.test(t) || /amara org/.test(t);
+}
+
 const WAKE_VARIANTS = [
   "jarvis",
   "javes",
@@ -467,6 +746,12 @@ const WAKE_VARIANTS = [
   "charvis",
   "gervis",
   "jarvi",
+  "jarbas",
+  "jarvys",
+  "jervis",
+  "garvis",
+  "harvis",
+  "yarvis",
 ];
 
 function stripAccentsWithMap(input: string): { clean: string; toOrig: number[] } {
@@ -484,7 +769,7 @@ function stripAccentsWithMap(input: string): { clean: string; toOrig: number[] }
   return { clean, toOrig };
 }
 
-function matchWakeWord(raw: string, configuredWake?: string): { endIndex: number } | null {
+export function matchWakeWord(raw: string, configuredWake?: string): { endIndex: number } | null {
   const { clean, toOrig } = stripAccentsWithMap(raw);
   const prefix = "(?:(?:ei|oi|hey|ok|fala|e\\s+ai)[\\s,.:!?-]+)?";
   const variantsGroup = `(?:${WAKE_VARIANTS.join("|")})`;

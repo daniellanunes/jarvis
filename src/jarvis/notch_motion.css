@@ -816,3 +816,89 @@
   line-height: 1.5;
   margin-bottom: 10px;
 }
+
+/* Ajustes → Microfone: live level meter */
+.mic-meter {
+  position: relative;
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+  margin-top: 8px;
+}
+.mic-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 5px;
+  background: #71717a;
+  transition: width 0.08s linear;
+}
+.mic-fill.over {
+  background: #22c55e;
+}
+.mic-mark {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: #fafafa;
+  left: 50%;
+}
+
+/* Ajustes → voice enrollment */
+.enroll-say {
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  margin-top: 6px;
+}
+.enroll-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.enroll-dots span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+}
+.enroll-dots span.done {
+  background: #22c55e;
+}
+.enroll-dots span.now {
+  background: #fafafa;
+  animation: enroll-pulse 1s ease-in-out infinite;
+}
+@keyframes enroll-pulse {
+  50% {
+    transform: scale(1.35);
+  }
+}
+
+/* Ajustes → new version card */
+.update-card {
+  margin: 14px 0 6px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.06);
+}
+.update-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.update-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+.update-notes {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.55;
+}

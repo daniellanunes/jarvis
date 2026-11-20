@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Jarvis — LinkedIn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1350px; overflow: hidden; background: #09090b; }
+  body { font-family: Inter, "Segoe UI", sans-serif; color: #fafafa; -webkit-font-smoothing: antialiased; position: relative; }
+  .scene { position: absolute; inset: 0; opacity: 0; }
+  .glow { position: absolute; inset: 0; background:
+    radial-gradient(55% 35% at 50% 10%, rgba(255,255,255,.07), transparent 70%),
+    radial-gradient(45% 30% at 88% 92%, rgba(34,197,94,.11), transparent 70%); }
+  .grid { position: absolute; inset: 0;
+    background-image: linear-gradient(to right, rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.035) 1px, transparent 1px);
+    background-size: 60px 60px; mask-image: radial-gradient(75% 55% at 50% 35%, #000 30%, transparent 80%); }
+  .pad { position: absolute; left: 84px; right: 84px; }
+  .eyebrow { font-size: 22px; font-weight: 700; letter-spacing: 5px; text-transform: uppercase; color: #4ade80; }
+  h1 { font-size: 104px; font-weight: 800; letter-spacing: -4px; line-height: 1; }
+  h2 { font-size: 62px; font-weight: 750; letter-spacing: -2px; line-height: 1.1; }
+  .muted { color: #71717a; }
+  .lead { font-size: 32px; color: #a1a1aa; line-height: 1.45; font-weight: 500; }
+  .mono { font-family: "JetBrains Mono", Consolas, monospace; }
+  .brandbar { position: absolute; left: 84px; right: 84px; bottom: 56px; display: flex; justify-content: space-between; align-items: center;
+    font-size: 22px; color: #52525b; font-weight: 600; }
+  .brandbar .l { display: flex; align-items: center; gap: 14px; color: #a1a1aa; }
+  .frame { position: absolute; border-radius: 24px; overflow: hidden; border: 2px solid rgba(255,255,255,.1);
+    box-shadow: 0 40px 120px -30px rgba(0,0,0,.95); background: #0c0c0f; }
+  .frame img { position: absolute; top: 0; left: 0; height: 100%; width: auto; }
+  img { display: block; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .card { border-radius: 24px; border: 2px solid rgba(255,255,255,.08); background: #0e0e12; padding: 30px 32px; }
+  .card svg { color: #e4e4e7; }
+  .card b { display: block; font-size: 30px; margin-top: 18px; letter-spacing: -.5px; }
+  .card span { display: block; font-size: 23px; color: #a1a1aa; margin-top: 8px; line-height: 1.4; }
+  .box { border-radius: 22px; border: 2px solid rgba(255,255,255,.1); background: #0e0e12; padding: 24px 28px; }
+  .box h4 { font-size: 26px; font-weight: 700; }
+  .box p { font-size: 20px; color: #a1a1aa; margin-top: 6px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .tag { font-size: 19px; font-weight: 600; padding: 8px 14px; border-radius: 10px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); color: #e4e4e7; }
+  .tag.g { background: rgba(34,197,94,.1); border-color: rgba(34,197,94,.3); color: #86efac; }
+  .line { position: absolute; width: 2px; background: linear-gradient(#4ade80, rgba(74,222,128,.15)); transform-origin: 50% 0; }
+  .stat { border-radius: 24px; border: 2px solid rgba(255,255,255,.08); background: #0e0e12; padding: 34px 34px 30px; }
+  .stat .n { font-size: 96px; font-weight: 800; letter-spacing: -4px; line-height: 1; }
+  .stat .d { font-size: 24px; color: #a1a1aa; margin-top: 14px; line-height: 1.4; }
+  .row { display: flex; gap: 22px; align-items: flex-start; padding: 26px 0; border-bottom: 1px solid rgba(255,255,255,.07); }
+  .row .ic { width: 56px; height: 56px; border-radius: 16px; background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.3);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #4ade80; }
+  .row b { font-size: 30px; display: block; letter-spacing: -.5px; }
+  .row span { font-size: 23px; color: #a1a1aa; display: block; margin-top: 6px; line-height: 1.4; }
+  .chip { display: inline-flex; align-items: center; gap: 12px; padding: 18px 30px; border-radius: 999px; background: #fafafa; color: #0b0b0d; font-size: 28px; font-weight: 700; }
+  .url { display: inline-block; font-size: 30px; font-weight: 600; padding: 18px 28px; border-radius: 18px; border: 2px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); }
+  .typed { display: inline-flex; align-items: center; gap: 16px; padding: 20px 30px; border-radius: 999px; background: rgba(255,255,255,.06); border: 2px solid rgba(255,255,255,.1); font-size: 32px; font-weight: 600; }
+  .cursor { display: inline-block; width: 3px; height: 36px; background: #fafafa; margin-left: 2px; }
+</style>
+</head>
+<body>
+  <div class="glow"></div>
+  <div class="grid"></div>
+
+  <svg width="0" height="0" style="position:absolute">
+    <defs>
+      <linearGradient id="bg1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1c1c21"/><stop offset="1" stop-color="#09090b"/></linearGradient>
+      <linearGradient id="fc1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#e4e4e7"/></linearGradient>
+      <symbol id="mark" viewBox="0 0 512 512">
+        <rect x="8" y="8" width="496" height="496" rx="118" fill="url(#bg1)"/>
+        <rect x="8.5" y="8.5" width="495" height="495" rx="117.5" fill="none" stroke="#fff" stroke-opacity=".12"/>
+        <rect x="112" y="170" width="288" height="204" rx="102" fill="url(#fc1)"/>
+        <ellipse cx="208" cy="272" rx="21" ry="27" fill="#0b0b0d"/><ellipse cx="304" cy="272" rx="21" ry="27" fill="#0b0b0d"/>
+        <circle cx="396" cy="150" r="34" fill="#09090b"/><circle cx="396" cy="150" r="22" fill="#22c55e"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <!-- 1. Title -->
+  <section class="scene" id="s1">
+    <div class="pad" style="top:300px">
+      <svg id="logo1" width="170" height="170"><use href="#mark"/></svg>
+      <div class="eyebrow" style="margin-top:56px">Projeto open source</div>
+      <h1 style="margin-top:22px">Jarvis</h1>
+      <p class="lead" style="margin-top:26px;font-size:40px;color:#d4d4d8;max-width:860px">Um assistente de IA para Windows<br>que vive no topo da tela — e executa.</p>
+    </div>
+  </section>
+
+  <!-- 2. Problem / idea -->
+  <section class="scene" id="s2">
+    <div class="pad" style="top:250px">
+      <div class="eyebrow">A ideia</div>
+      <h2 style="margin-top:24px" id="p2a">A maioria dos assistentes de IA<br><span class="muted">vive numa aba do navegador.</span></h2>
+      <h2 style="margin-top:56px" id="p2b">E se ele morasse no seu desktop<br><span style="color:#4ade80">e fizesse as coisas por você?</span></h2>
+    </div>
+  </section>
+
+  <!-- 3. Product -->
+  <section class="scene" id="s3">
+    <div class="pad" style="top:110px">
+      <div class="eyebrow">O produto</div>
+      <h2 style="margin-top:20px;font-size:52px">Um notch no topo da tela.<br><span class="muted">Um painel a um clique.</span></h2>
+    </div>
+    <div style="position:absolute;left:84px;right:84px;top:400px">
+      <img id="pill3" src="../docs/images/notch-pill.png" style="width:912px" alt="">
+    </div>
+    <div class="pad" style="top:520px"><div class="typed" id="typed3wrap"><span id="typed3"></span><span class="cursor" id="cur3"></span></div></div>
+    <div class="frame" id="frame3" style="left:84px;width:912px;top:640px;height:560px"><img id="panel3" src="../docs/images/panel-home.png" alt=""></div>
+  </section>
+
+  <!-- 4. Capabilities -->
+  <section class="scene" id="s4">
+    <div class="pad" style="top:110px">
+      <div class="eyebrow">O que ele faz</div>
+      <h2 style="margin-top:20px;font-size:54px">Entende o pedido,<br><span class="muted">usa a ferramenta certa e confere.</span></h2>
+    </div>
+    <div class="pad cards" style="top:400px" id="cards4">
+      <div class="card"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><b>Agenda e Gmail</b><span>Eventos com lembretes. E-mail só quando você pede.</span></div>
+      <div class="card"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg><b>Spotify e mídia</b><span>Toca a faixa exata; controla qualquer app.</span></div>
+      <div class="card"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg><b>Navegador</b><span>Abre, clica e digita — e confere o resultado.</span></div>
+      <div class="card"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h4"/></svg><b>Arquivos e notas</b><span>Busca local e escrita no Obsidian.</span></div>
+      <div class="card"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="3"/><path d="M6 12h4M8 10v4M15 11h.01M18 13h.01"/></svg><b>PC e jogos</b><span>CPU, GPU, RAM, ping e FPS em tempo real.</span></div>
+      <div class="card"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M7 10v4a3 3 0 0 0 3 3h4"/></svg><b>Rotinas</b><span>Disparadas por app aberto ou horário.</span></div>
+    </div>
+  </section>
+
+  <!-- 5. Architecture -->
+  <section class="scene" id="s5">
+    <div class="pad" style="top:96px">
+      <div class="eyebrow">Arquitetura</div>
+      <h2 style="margin-top:20px;font-size:52px">Nativo, leve<br><span class="muted">e local-first.</span></h2>
+    </div>
+    <div class="pad" style="top:345px" id="a1">
+      <div class="box"><h4>Interface · TypeScript</h4><p>Notch, painel e mascote em Canvas — sem framework.</p></div>
+    </div>
+    <div class="line" id="l1" style="left:539px;top:470px;height:46px"></div>
+    <div class="pad" style="top:516px" id="a2">
+      <div class="box" style="border-color:rgba(34,197,94,.35)"><h4>Núcleo em Rust · Tauri 2</h4>
+        <div class="tags"><span class="tag g">Function calling</span><span class="tag g">Comandos instantâneos</span><span class="tag g">Fallback entre IAs</span><span class="tag g">OAuth PKCE</span></div>
+      </div>
+    </div>
+    <div class="line" id="l2" style="left:300px;top:690px;height:46px"></div>
+    <div class="line" id="l3" style="left:780px;top:690px;height:46px"></div>
+    <div class="pad" style="top:736px;display:grid;grid-template-columns:1fr 1fr;gap:22px" id="a3">
+      <div class="box"><h4>Windows nativo</h4>
+        <div class="tags"><span class="tag">ETW (FPS)</span><span class="tag">WinRT SMTC</span><span class="tag">Core Audio</span><span class="tag">PDH</span><span class="tag">Task Scheduler</span><span class="tag">Credential Manager</span><span class="tag">CDP</span></div>
+      </div>
+      <div class="box"><h4>Serviços</h4>
+        <div class="tags"><span class="tag">Gemini</span><span class="tag">Groq</span><span class="tag">OpenAI</span><span class="tag">Claude</span><span class="tag">Ollama</span><span class="tag">Google</span><span class="tag">Spotify</span><span class="tag">GitHub</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. Numbers -->
+  <section class="scene" id="s6">
+    <div class="pad" style="top:110px">
+      <div class="eyebrow">Engenharia</div>
+      <h2 style="margin-top:20px;font-size:54px">Feito para ser confiável<br><span class="muted">no uso de todo dia.</span></h2>
+    </div>
+    <div class="pad cards" style="top:410px" id="stats6">
+      <div class="stat"><div class="n" data-to="636">0</div><div class="d">testes automatizados<br>(Rust + TypeScript)</div></div>
+      <div class="stat"><div class="n" data-to="5">0</div><div class="d">provedores de IA, com troca<br>automática se um cair</div></div>
+      <div class="stat"><div class="n" data-to="0">0</div><div class="d">servidores próprios —<br>tudo roda no seu PC</div></div>
+      <div class="stat"><div class="n" data-to="1">0</div><div class="d">pedido de admin — na<br>instalação, nunca mais</div></div>
+    </div>
+  </section>
+
+  <!-- 7. Privacy -->
+  <section class="scene" id="s7">
+    <div class="pad" style="top:110px">
+      <div class="eyebrow">Privacidade por design</div>
+      <h2 style="margin-top:20px;font-size:54px">Seu assistente.<br><span class="muted">Seus dados.</span></h2>
+    </div>
+    <div class="pad" style="top:370px" id="rows7">
+      <div class="row"><div class="ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 22h8M12 18v4"/></svg></div><div><b>Local-first</b><span>Configurações e dados no perfil do Windows.</span></div></div>
+      <div class="row"><div class="ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div><div><b>Chaves no cofre do Windows</b><span>Tokens no Credential Manager, nunca em texto.</span></div></div>
+      <div class="row"><div class="ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h16v16H4z"/><path d="m22 6-10 7L2 6"/></svg></div><div><b>Gmail sob demanda</b><span>Uso Limitado das APIs do Google.</span></div></div>
+      <div class="row" style="border-bottom:0"><div class="ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></div><div><b>Humano no controle</b><span>E-mail, WhatsApp e comandos do sistema pedem Permitir.</span></div></div>
+    </div>
+  </section>
+
+  <!-- 8. CTA -->
+  <section class="scene" id="s8">
+    <div class="pad" style="top:250px">
+      <svg width="150" height="150"><use href="#mark"/></svg>
+      <h1 style="margin-top:44px;font-size:92px">Jarvis</h1>
+      <p class="lead" style="margin-top:22px;font-size:36px;color:#d4d4d8">Gratuito e open source (MIT).<br>Feedback e contribuições são bem-vindos.</p>
+      <div style="margin-top:48px" id="cta8"><span class="url mono">github.com/daniellanunes/jarvis</span></div>
+      <div style="margin-top:26px"><span class="chip">Link nos comentários ↓</span></div>
+    </div>
+  </section>
+
+  <div class="brandbar" id="brandbar">
+    <span class="l"><svg width="34" height="34"><use href="#mark"/></svg>Jarvis</span>
+    <span class="mono">Rust · Tauri 2 · TypeScript</span>
+  </div>
+
+<script>
+  const clamp = (v) => Math.max(0, Math.min(1, v));
+  const k = (t, a, b) => clamp((t - a) / (b - a));
+  const out = (x) => 1 - Math.pow(1 - x, 3);
+  const inOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+  const $ = (id) => document.getElementById(id);
+  const SCENES = [["s1", 0, 4], ["s2", 4, 8.6], ["s3", 8.6, 15], ["s4", 15, 20.6], ["s5", 20.6, 27.4], ["s6", 27.4, 32.6], ["s7", 32.6, 38.2], ["s8", 38.2, 50]];
+  const PHRASE = "“Jarvis, o que eu tenho amanhã?”";
+
+  function stagger(selector, t, start, step, dist = 30, axis = "Y") {
+    document.querySelectorAll(selector).forEach((el, i) => {
+      const q = out(k(t, start + i * step, start + i * step + 0.5));
+      el.style.opacity = q;
+      el.style.transform = `translate${axis}(${(1 - q) * dist}px)`;
+    });
+  }
+
+  function setT(t) {
+    for (const [id, a, b] of SCENES) {
+      const el = $(id);
+      el.style.opacity = Math.min(out(k(t, a, a + 0.5)), 1 - k(t, b - 0.4, b));
+      el.style.transform = `translateY(${(1 - out(k(t, a, a + 0.7))) * 26}px)`;
+    }
+    // The brand bar stays, except on the title and the ending.
+    $("brandbar").style.opacity = Math.min(k(t, 4.2, 4.8), 1 - k(t, 37.8, 38.3));
+
+    // 1
+    const p1 = out(k(t, 0.1, 0.9));
+    $("logo1").style.transform = `scale(${0.7 + 0.3 * p1})`;
+    $("logo1").style.opacity = p1;
+    // 2
+    $("p2a").style.opacity = out(k(t, 4.3, 4.9));
+    $("p2b").style.opacity = out(k(t, 5.8, 6.5));
+    $("p2b").style.transform = `translateY(${(1 - out(k(t, 5.8, 6.5))) * 24}px)`;
+    // 3
+    const pp = out(k(t, 8.9, 9.6));
+    $("pill3").style.opacity = pp;
+    $("pill3").style.transform = `translateY(${(pp - 1) * 60}px)`;
+    $("typed3").textContent = PHRASE.slice(0, Math.round(PHRASE.length * k(t, 9.6, 11.0)));
+    $("cur3").style.opacity = t < 11.2 && Math.floor(t * 3) % 2 === 0 ? 1 : 0;
+    $("typed3wrap").style.opacity = Math.min(out(k(t, 9.4, 9.8)), 1 - k(t, 11.6, 12.0));
+    const pf = out(k(t, 11.4, 12.2));
+    $("frame3").style.opacity = pf;
+    $("frame3").style.transform = `translateY(${(1 - pf) * 50}px)`;
+    // 560 px tall → 938 px wide: barely wider than the frame, a gentle pan.
+    $("panel3").style.transform = `translateX(${-inOut(k(t, 12.2, 14.8)) * 26}px) scale(${1 + 0.06 * inOut(k(t, 12.2, 14.8))})`;
+    $("panel3").style.transformOrigin = "40% 30%";
+    // 4
+    stagger("#cards4 .card", t, 15.5, 0.18, 34);
+    // 5
+    $("a1").style.opacity = out(k(t, 21.0, 21.5));
+    $("l1").style.transform = `scaleY(${out(k(t, 21.4, 21.9))})`;
+    $("a2").style.opacity = out(k(t, 21.8, 22.4));
+    $("a2").style.transform = `scale(${0.96 + 0.04 * out(k(t, 21.8, 22.4))})`;
+    $("l2").style.transform = `scaleY(${out(k(t, 22.4, 22.9))})`;
+    $("l3").style.transform = `scaleY(${out(k(t, 22.4, 22.9))})`;
+    $("a3").style.opacity = out(k(t, 22.8, 23.4));
+    document.querySelectorAll("#a2 .tag, #a3 .tag").forEach((el, i) => {
+      const q = out(k(t, 22.6 + i * 0.07, 23.0 + i * 0.07));
+      el.style.opacity = q;
+    });
+    // 6 — counters
+    stagger("#stats6 .stat", t, 27.8, 0.2, 30);
+    document.querySelectorAll("#stats6 .n").forEach((el, i) => {
+      const to = Number(el.dataset.to);
+      el.textContent = Math.round(to * out(k(t, 28.0 + i * 0.2, 29.6 + i * 0.2)));
+    });
+    // 7
+    stagger("#rows7 .row", t, 33.0, 0.3, 40, "X");
+    // 8
+    $("cta8").style.transform = `scale(${1 + 0.02 * Math.sin(Math.max(0, t - 39.5) * 4)})`;
+  }
+
+  window.setT = setT;
+  window.ready = Promise.all([
+    document.fonts.ready,
+    ...[...document.images].map((i) => (i.complete ? Promise.resolve() : new Promise((r) => (i.onload = i.onerror = r)))),
+  ]);
+  setT(Number(new URLSearchParams(location.search).get("t") ?? 0));
+</script>
+</body>
+</html>

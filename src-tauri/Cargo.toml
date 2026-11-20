@@ -18,6 +18,8 @@ tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-global-shortcut = "2"
+# In-app updates from GitHub Releases, signature-checked (updater.rs).
+tauri-plugin-updater = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 tokio = { version = "1", features = ["net", "io-util", "sync", "time", "rt"] }
@@ -78,6 +80,12 @@ windows = { version = "0.61", features = [
   "Foundation",
   "Foundation_Collections",
 ] }
+# Local wake word (wakeword.rs): the microphone read natively, and the user's
+# own "Jarvis" spotted on the PC — no cloud call until a command is heard.
+cpal = "0.15"
+rustpotter = "3"
+# Rustpotter's candle 0.2 does not build with half ≥ 2.5 (rand 0.9): keep 2.4.
+half = "=2.4.1"
 # FPS in games (pc_monitor.rs): counts the frames each process presents, from
 # the DXGI / Direct3D 9 ETW providers — the way PresentMon does. Needs admin.
 ferrisetw = "1"

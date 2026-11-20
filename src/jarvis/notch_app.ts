@@ -355,6 +355,20 @@ export async function startJarvisNotch(root: HTMLElement) {
   let soundBeforeGame: boolean | null = null;
   const gameModeOn = () => Boolean(game && State.settings.jarvisGameMode);
   let lastView = "";
+  /** A newer version on GitHub (app_update.rs), and the download's progress. */
+  let updateInfo: import("../core/bridge").UpdateInfo | null = null;
+  let updateState: { phase: "idle" | "checking" | "downloading" | "installing" | "error" | "latest"; pct: number; note: string } = {
+    phase: "idle",
+    pct: 0,
+    note: "",
+  };
+  /** Local wake word status (wakeword.rs), and a way to reload it. */
+  let wakeStatus: import("../core/bridge").WakeStatus | null = null;
+  let refreshWakeSoon: () => void = () => {};
+  /** Enrollment in progress: which sample, and what to tell the user. */
+  let enroll: { index: number; note: string; err: boolean; busy: boolean } | null = null;
+  /** A voice command heard while the previous request was still running. */
+  let queuedVoice: { text: string; screen: boolean } | null = null;
   /** Last "Salvar" result under the city field, kept across re-renders. */
   let weatherNote: { text: string; err: boolean } | null = null;
 
@@ -415,6 +429,7 @@ export async function startJarvisNotch(root: HTMLElement) {
   function currentBotState(): "idle" | "working" | "thinking" {
     if (
       Voice.state === "recording" ||
+      Voice.state === "listening" ||
       Voice.state === "transcribing" ||
       liveStatus.phase === "executing" ||
       hasRunningAction()
@@ -685,6 +700,9 @@ export async function startJarvisNotch(root: HTMLElement) {
       Sound.play("finish");
       void Voice.speak(reply.text);
       answer = reply.text;
+      void Bridge.jarvisLog(
+        `resposta (${reply.providerUsed})${reply.actions.length ? ` · ações: ${reply.actions.join(" | ")}` : " · sem ação"}: "${reply.text.slice(0, 120)}"`,
+      );
 
       if (pendingItems.length > 0 && !expanded) {
         setExpanded(true, "chat");
@@ -701,6 +719,7 @@ export async function startJarvisNotch(root: HTMLElement) {
       if (fresh) data = { ...data, ...fresh };
     } catch (err) {
       const msg = String(err).replace(/^Error:\s*/, "");
+      void Bridge.jarvisLog(`erro no pedido "${q.slice(0, 80)}": ${msg.slice(0, 200)}`);
       // The brain did not answer: the sidebar status says so until one does.
       aiError = msg;
       chatLog.push({ role: "assistant", content: msg, meta: "Erro" });
@@ -710,6 +729,12 @@ export async function startJarvisNotch(root: HTMLElement) {
       sending = false;
       liveStatus = { phase: "idle", title: "", detail: "" };
       render();
+    }
+    // A voice command that arrived meanwhile.
+    if (queuedVoice) {
+      const next = queuedVoice;
+      queuedVoice = null;
+      window.setTimeout(() => void askJarvis(next.text, next.screen, !expanded), 50);
     }
     return answer;
   }
@@ -2003,6 +2028,276 @@ export async function startJarvisNotch(root: HTMLElement) {
     );
   }
 
+  /** Top of Ajustes when a newer version exists: notes, download, progress. */
+  function renderUpdateCard(): HTMLElement | string {
+    const u = updateInfo;
+    if (!u?.version) return "";
+    const busy = updateState.phase === "downloading" || updateState.phase === "installing";
+    const install = async () => {
+      updateState = { phase: "downloading", pct: 0, note: "" };
+      render();
+      try {
+        await Bridge.updateInstall();
+      } catch (e) {
+        updateState = { phase: "error", pct: 0, note: String(e).replace(/^Error:\s*/, "") };
+        render();
+      }
+    };
+    const notes = u.notes
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.startsWith("- "))
+      .slice(0, 5)
+      .map((l) => l.slice(2).replace(/\*\*/g, ""));
+    return h(
+      "div",
+      { class: "update-card" },
+      h(
+        "div",
+        { class: "update-head" },
+        h("div", {}, h("div", { class: "update-title", text: `Nova versão: Jarvis ${u.version}` }), h("div", { class: "tt-hint", style: "margin:2px 0 0", text: `Você está na ${u.current}.` })),
+        h("button", { class: "btn", text: busy ? "Atualizando…" : "Baixar e instalar", onclick: () => !busy && void install() }),
+      ),
+      notes.length ? h("ul", { class: "update-notes" }, ...notes.map((n) => h("li", { text: n }))) : "",
+      busy ? h("div", { class: "mic-meter", style: "margin-top:12px" }, h("div", { class: "mic-fill over", style: `width:${updateState.pct}%` })) : "",
+      updateState.note ? h("div", { class: `tt-note ${updateState.phase === "error" ? "err" : ""}`, style: "padding:8px 0 0", text: updateState.note }) : "",
+      h("div", { class: "tt-hint", style: "margin:8px 0 0", text: "A atualização é baixada do GitHub do projeto, conferida pela assinatura e instalada. O Windows pode pedir permissão de administrador." }),
+    );
+  }
+
+  /** Current version and "check now" (IA & Voz → Sobre). */
+  function renderAboutUpdates(): HTMLElement {
+    const line = h("span", {
+      class: "tt-row-meta",
+      text:
+        updateState.phase === "checking"
+          ? "Verificando…"
+          : updateInfo?.version
+            ? `Nova versão ${updateInfo.version} disponível (no topo de Ajustes)`
+            : updateState.phase === "latest"
+              ? "Você está na versão mais recente."
+              : updateState.phase === "error"
+                ? updateState.note
+                : "",
+    });
+    const check = async () => {
+      updateState = { phase: "checking", pct: 0, note: "" };
+      render();
+      try {
+        const u = await Bridge.updateCheck();
+        updateInfo = u;
+        updateState = { phase: u.version ? "idle" : "latest", pct: 0, note: "" };
+      } catch (e) {
+        updateState = { phase: "error", pct: 0, note: String(e).replace(/^Error:\s*/, "") };
+      }
+      render();
+    };
+    return h(
+      "div",
+      { class: "tt-card", style: "margin-bottom:8px" },
+      h("div", { class: "tt-card-title", text: `Jarvis ${updateInfo?.current ?? ""}`.trim() }),
+      h("div", { class: "tt-volume" }, line, h("button", { class: "btn btn-sm", text: "Verificar atualizações", onclick: () => void check() })),
+    );
+  }
+
+  /** Voice enrollment: the user says "Jarvis" a few times; afterwards the name
+   *  is recognized on the PC (instant, offline) instead of in the cloud. */
+  function renderWakeEnroll(): HTMLElement {
+    const st = wakeStatus;
+    const wanted = st?.samplesWanted ?? 6;
+    const local = (State.settings.jarvisWakeEngine ?? "local") === "local";
+
+    const startEnroll = async () => {
+      // A fresh enrollment: the old model goes, samples are recorded one by one.
+      // The cloud listener must not take the samples for calls meanwhile.
+      Voice.setLocalWake(true);
+      await Bridge.wakewordReset();
+      enroll = { index: 0, note: "", err: false, busy: false };
+      render();
+      void nextSample();
+    };
+    const nextSample = async () => {
+      if (!enroll) return;
+      if (enroll.index >= wanted) {
+        enroll = { ...enroll, busy: true, note: "Criando o modelo da sua voz…", err: false };
+        render();
+        try {
+          wakeStatus = await Bridge.wakewordBuild();
+          enroll = null;
+          Voice.setLocalWake(wakeStatus.active);
+          showToast("Pronto! Agora o Jarvis reconhece o seu “Jarvis” no próprio PC.", 7000);
+          refreshWakeSoon();
+        } catch (e) {
+          if (enroll) enroll = { ...enroll, busy: false, note: String(e).replace(/^Error:\s*/, ""), err: true };
+        }
+        render();
+        return;
+      }
+      enroll = { ...enroll, busy: true, note: "", err: false };
+      render();
+      try {
+        await Bridge.wakewordRecordSample(enroll.index + 1);
+        if (!enroll) return; // cancelled meanwhile
+        enroll = { ...enroll, index: enroll.index + 1, busy: false, note: "", err: false };
+        Sound.play("pop");
+        render();
+        window.setTimeout(() => void nextSample(), 700);
+      } catch (e) {
+        if (!enroll) return;
+        enroll = { ...enroll, busy: false, note: String(e).replace(/^Error:\s*/, ""), err: true };
+        render();
+        window.setTimeout(() => void nextSample(), 1600);
+      }
+    };
+
+    const card = h("div", { class: "tt-card", style: "margin-bottom:8px" });
+    if (enroll) {
+      const dots = h(
+        "div",
+        { class: "enroll-dots" },
+        ...Array.from({ length: wanted }, (_, i) => h("span", { class: i < enroll!.index ? "done" : i === enroll!.index ? "now" : "" })),
+      );
+      card.append(
+        h("div", { class: "enroll-say", text: enroll.index >= wanted ? "Quase lá…" : enroll.busy ? "Diga “Jarvis”" : "Prepare-se…" }),
+        h("div", { class: "tt-hint", style: "text-align:center;margin:4px 0 12px", text: enroll.index >= wanted ? "" : `Amostra ${enroll.index + 1} de ${wanted} — do jeito que você chama normalmente, a uma distância normal do microfone.` }),
+        dots,
+        enroll.note ? h("div", { class: `tt-note ${enroll.err ? "err" : ""}`, style: "text-align:center", text: enroll.note }) : "",
+        h("div", { style: "text-align:center;margin-top:10px" }, h("button", { class: "btn btn-sm btn-ghost", text: "Cancelar", onclick: () => ((enroll = null), refreshWakeSoon(), render()) })),
+      );
+      return card;
+    }
+
+    const enrolled = Boolean(st?.enrolled);
+    card.append(
+      h("div", { class: "tt-card-title", text: enrolled ? (st?.active ? "Ativo — reconhecido no seu PC" : "Cadastrado (desligado)") : "Sem cadastro — usando a nuvem" }),
+      h("div", {
+        class: "tt-hint",
+        style: "margin:0 0 10px",
+        text: enrolled
+          ? "O Jarvis compara o que o microfone ouve com o seu “Jarvis”, no próprio PC: responde na hora, sem internet, e a conversa do ambiente não é enviada para lugar nenhum."
+          : "Diga “Jarvis” 6 vezes e o Jarvis passa a reconhecer o seu chamado no próprio PC — mais rápido, sem gastar cota e muito melhor com barulho.",
+      }),
+      st?.error ? h("div", { class: "tt-note err", style: "padding:4px 0 10px", text: `Microfone: ${st.error}` }) : "",
+      h(
+        "div",
+        { class: "tt-actions" },
+        h("button", { class: "btn btn-sm", text: enrolled ? "Refazer cadastro" : "Cadastrar minha voz", onclick: () => void startEnroll() }),
+        enrolled
+          ? h("button", {
+              class: "btn btn-sm btn-ghost",
+              text: "Remover",
+              onclick: async () => {
+                wakeStatus = await Bridge.wakewordReset();
+                Voice.setLocalWake(false);
+                render();
+              },
+            })
+          : "",
+      ),
+    );
+    if (enrolled) {
+      const th = State.settings.jarvisWakeThreshold ?? 0.45;
+      const slider = h("input", { type: "range", min: "0.35", max: "0.7", step: "0.05", value: String(th), class: "tt-range" }) as HTMLInputElement;
+      slider.addEventListener("change", async () => {
+        await saveSettings({ ...State.settings, jarvisWakeThreshold: Number(slider.value) });
+        refreshWakeSoon();
+      });
+      const engine = h("button", {
+        class: `btn btn-sm ${local ? "" : "btn-ghost"}`,
+        text: local ? "Usando o reconhecimento local" : "Usando a nuvem — trocar para local",
+        onclick: async () => {
+          await saveSettings({ ...State.settings, jarvisWakeEngine: local ? "cloud" : "local" });
+          refreshWakeSoon();
+          render();
+        },
+      });
+      card.append(
+        h("div", { class: "tt-card-title", style: "margin-top:14px", text: "Sensibilidade do chamado" }),
+        h("div", { class: "tt-volume" }, h("span", { text: "Mais fácil" }), slider, h("span", { text: "Mais rigoroso" })),
+        h("div", { class: "tt-hint", style: "margin:4px 0 0", text: "Se ele não acorda, puxe para “mais fácil”. Se acorda sozinho, para “mais rigoroso”." }),
+        h("div", { style: "margin-top:12px" }, engine),
+      );
+    }
+    return card;
+  }
+
+  /** Which microphone the Jarvis listens to, how sensitive, and a live meter. */
+  function renderMicSettings(): HTMLElement {
+    const current = State.settings.jarvisMicDevice ?? "";
+    const select = h(
+      "select",
+      { class: "input", style: "width:100%;height:34px;color-scheme:dark" },
+      h("option", { value: "", text: "Padrão do Windows para apps" }),
+      h("option", { value: "communications", text: "Fone/headset — dispositivo de comunicação do Windows" }),
+    ) as HTMLSelectElement;
+    select.value = current;
+    // Real device names (available once the microphone was allowed).
+    void navigator.mediaDevices?.enumerateDevices().then((devices) => {
+      for (const d of devices) {
+        if (d.kind !== "audioinput" || d.deviceId === "default" || d.deviceId === "communications") continue;
+        select.append(h("option", { value: d.deviceId, text: d.label || "Microfone" }));
+      }
+      select.value = current;
+      if (select.value !== current) select.value = "";
+    });
+    select.addEventListener("change", async () => {
+      const name = select.value && select.value !== "communications" ? select.selectedOptions[0]?.text ?? "" : "";
+      await saveSettings({ ...State.settings, jarvisMicDevice: select.value, jarvisMicName: name });
+      Voice.restart();
+      refreshWakeSoon();
+    });
+
+    const sens = State.settings.jarvisMicSensitivity ?? "alta";
+    const chips = h(
+      "div",
+      { class: "tt-chips", style: "margin:10px 0 0" },
+      ...([
+        ["alta", "Alta — voz normal"],
+        ["media", "Média"],
+        ["baixa", "Baixa — lugar barulhento"],
+      ] as const).map(([id, label]) =>
+        h("button", {
+          class: `tt-chip ${sens === id ? "on" : ""}`,
+          text: label,
+          onclick: async () => {
+            await saveSettings({ ...State.settings, jarvisMicSensitivity: id });
+            Voice.restart();
+            refreshWakeSoon();
+            render();
+          },
+        }),
+      ),
+    );
+
+    // Live meter: the bar is your voice, the line is how loud it must be.
+    const fill = h("div", { class: "mic-fill" });
+    const mark = h("div", { class: "mic-mark" });
+    const meter = h("div", { class: "mic-meter" }, fill, mark);
+    const hint = h("div", { class: "tt-hint", style: "margin:6px 0 0", text: "Fale normalmente: a barra deve passar da linha. Se só passa gritando, escolha outro microfone ou a sensibilidade Alta." });
+    let smooth = 0;
+    Voice.onLevel = (level, threshold) => {
+      if (!meter.isConnected) return;
+      smooth = Math.max(level, smooth * 0.85);
+      // A log scale reads better than a linear one for voices.
+      const pos = (v: number) => Math.max(0, Math.min(100, ((Math.log10(Math.max(v, 0.001)) + 3) / 2.3) * 100));
+      fill.style.width = `${pos(smooth)}%`;
+      fill.classList.toggle("over", smooth > threshold);
+      mark.style.left = `${pos(threshold)}%`;
+    };
+
+    return h(
+      "div",
+      { class: "tt-card", style: "margin-bottom:8px" },
+      h("div", { class: "tt-card-title", text: "Microfone do Jarvis" }),
+      select,
+      h("div", { class: "tt-card-title", style: "margin-top:14px", text: "Sensibilidade" }),
+      chips,
+      h("div", { class: "tt-card-title", style: "margin-top:14px", text: "Nível agora" }),
+      meter,
+      hint,
+    );
+  }
+
   /** The OpenBot webhook secret: written to the Windows vault, never shown back. */
   function secretField(): HTMLElement {
     const input = h("input", { class: "input", type: "password", placeholder: "Segredo HMAC do webhook", style: "flex:1;height:34px" }) as HTMLInputElement;
@@ -2184,7 +2479,7 @@ export async function startJarvisNotch(root: HTMLElement) {
     );
 
     if (settingsSubTab === "notch") {
-      main.append(h("div", { class: "row between" }, h("div", { class: "page-title", text: "Ajustes" }), subNav));
+      main.append(h("div", { class: "row between" }, h("div", { class: "page-title", text: "Ajustes" }), subNav), renderUpdateCard());
       renderNotchSettings(main);
       return;
     }
@@ -2216,7 +2511,7 @@ export async function startJarvisNotch(root: HTMLElement) {
       });
 
       main.append(
-        h("div", { class: "row between" }, h("div", { class: "page-title", text: "Ajustes" }), subNav),
+        h("div", { class: "row between" }, h("div", { class: "page-title", text: "Ajustes" }), subNav), renderUpdateCard(),
         h(
           "div",
           { class: "mascot-grid" },
@@ -2515,7 +2810,7 @@ export async function startJarvisNotch(root: HTMLElement) {
     const hasGroq = groqOk || accounts.some((a) => a.provider === "groq");
 
     main.append(
-      h("div", { class: "row between" }, h("div", { class: "page-title", text: "Ajustes" }), subNav),
+      h("div", { class: "row between" }, h("div", { class: "page-title", text: "Ajustes" }), subNav), renderUpdateCard(),
       h(
         "div",
         { class: "brain-banner" },
@@ -2840,8 +3135,14 @@ export async function startJarvisNotch(root: HTMLElement) {
           }),
         ),
       ),
+      sectionHead("Reconhecimento da sua voz"),
+      renderWakeEnroll(),
+      sectionHead("Microfone"),
+      renderMicSettings(),
       sectionHead("Pastas e integrações"),
       renderFolderSettings(),
+      sectionHead("Sobre"),
+      renderAboutUpdates(),
     );
   }
 
@@ -2870,7 +3171,7 @@ export async function startJarvisNotch(root: HTMLElement) {
     if (!expanded) {
       musicPanel.hide();
       agendaPanel.hide();
-      const isListening = Voice.state === "recording" || Voice.state === "transcribing";
+      const isListening = Voice.state === "recording" || Voice.state === "transcribing" || Voice.state === "listening";
       const runningAction = hasRunningAction();
       const isExecuting = !isListening && (liveStatus.phase === "executing" || Boolean(runningAction));
       const isThinking = !isListening && !isExecuting && (liveStatus.phase === "thinking" || sending);
@@ -3079,9 +3380,10 @@ export async function startJarvisNotch(root: HTMLElement) {
       },
     ];
 
-    const footerNav: { id: TabId; label: string; icon: string }[] = [
+    const footerNav: { id: TabId; label: string; icon: string; badge?: string }[] = [
       { id: "pc", label: "Meu PC", icon: ICONS.pc },
-      { id: "settings", label: "Ajustes", icon: ICONS.settings },
+      // A new version waiting: a dot on Ajustes, where the update card is.
+      { id: "settings", label: "Ajustes", icon: ICONS.settings, badge: updateInfo?.version ? "Novo" : undefined },
     ];
 
     const makeNavButton = (item: { id: TabId; label: string; icon: string; badge?: string; activeCheck?: boolean }) =>
@@ -3112,7 +3414,7 @@ export async function startJarvisNotch(root: HTMLElement) {
 
     const health = aiHealth();
     // Activity wins over health; otherwise the AI's real state.
-    const busyLabel = Voice.state === "recording" ? "Ouvindo…" : sending ? "Pensando…" : "";
+    const busyLabel = Voice.state === "recording" || Voice.state === "listening" ? "Ouvindo…" : sending ? "Pensando…" : "";
     const statusLabel = busyLabel || health.label;
     const statusDot = busyLabel ? "green" : health.state === "ready" ? "green" : health.state === "offline" ? "red" : "idle";
     const statusEl = h(
@@ -3268,6 +3570,12 @@ export async function startJarvisNotch(root: HTMLElement) {
   Voice.onCommand = (text) => {
     // "o que tem na minha tela", "olha minha tela", "lê isso na tela"…
     const screen = /\b(minha|na|da|nessa|esta|essa) tela\b|\bprint\b/i.test(text);
+    if (sending) {
+      // Still answering the previous one: run this one right after, not never.
+      queuedVoice = { text, screen };
+      void Bridge.jarvisLog(`voice: na fila (Jarvis ocupado): "${text.slice(0, 80)}"`);
+      return;
+    }
     void askJarvis(text, screen, !expanded);
   };
 
@@ -3279,7 +3587,10 @@ export async function startJarvisNotch(root: HTMLElement) {
 
   // Fixed Jarvis hotkeys: Ctrl+Alt+J (screen) and Ctrl+Alt+K (translate).
   await onEvent<string>("jarvis-hotkey", async (action) => {
-    if (action === "jarvisScreen") {
+    if (action === "jarvisVoice") {
+      if (Voice.localWake) void Bridge.wakewordListenNow().catch(() => Voice.toggleRecording());
+      else void Voice.toggleRecording();
+    } else if (action === "jarvisScreen") {
       void askJarvis("Olhe minha tela e diga, em poucas frases, o que tem de importante nela. Se houver um erro, explique como resolver.", true, !expanded);
     } else if (action === "jarvisTranslate") {
       const text = await Bridge.selectedText();
@@ -3368,6 +3679,61 @@ export async function startJarvisNotch(root: HTMLElement) {
       }, 4000);
     }
   }
+  // Transcription limit and similar: a short note in the notch.
+  Voice.onNotice = (text) => showToast(text, 9000);
+  // A new version on GitHub: a note in the notch (once per version) and the card in Ajustes.
+  void Bridge.onUpdateAvailable((u) => {
+    const first = updateInfo?.version !== u.version;
+    updateInfo = u;
+    if (first) {
+      let seen = "";
+      try {
+        seen = localStorage.getItem("jarvis-update-seen") ?? "";
+      } catch {
+        /* ignore */
+      }
+      if (seen !== u.version) {
+        showToast(`Nova versão do Jarvis (${u.version}) disponível — veja em Ajustes.`, 12000);
+        try {
+          localStorage.setItem("jarvis-update-seen", u.version ?? "");
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    render();
+  });
+  void Bridge.onUpdateProgress((p) => {
+    updateState =
+      p.phase === "installing"
+        ? { phase: "installing", pct: 100, note: "Instalando… o Jarvis vai fechar e abrir de novo." }
+        : { phase: "downloading", pct: p.total ? Math.round((p.downloaded / p.total) * 100) : 0, note: "" };
+    if (expanded && activeTab === "settings") render();
+  });
+
+  // The native wake word (the user's enrolled "Jarvis").
+  Voice.attachLocal();
+  const refreshWake = async () => {
+    const st = await Bridge.wakewordStatus();
+    if (st) {
+      const changed = JSON.stringify(st) !== JSON.stringify(wakeStatus);
+      wakeStatus = st;
+      Voice.setLocalWake(st.active);
+      // Ajustes shows it: redraw (not during an enrollment, which drives itself).
+      if (changed && expanded && activeTab === "settings" && !enroll) render();
+    }
+  };
+  window.setTimeout(() => void refreshWake(), 1500);
+  window.setInterval(() => void refreshWake(), 10000);
+  refreshWakeSoon = () => {
+    void Bridge.wakewordRestart();
+    window.setTimeout(() => void refreshWake().then(() => render()), 1200);
+  };
+  // With media playing, only a closer, louder voice wakes the Jarvis.
+  window.setInterval(() => {
+    Voice.mediaPlaying = Boolean(mediaNow?.playing) || nowPlaying.playing;
+  }, 1500);
+
   Voice.onStateChange = () => {
     render();
   };

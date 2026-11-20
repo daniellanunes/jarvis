@@ -104,6 +104,11 @@ mod win {
         }
     }
 
+    #[cfg(test)]
+    pub fn name_of_pub(d: &IMMDevice) -> String {
+        unsafe { name_of(d) }
+    }
+
     unsafe fn name_of(d: &IMMDevice) -> String {
         let Ok(store) = d.OpenPropertyStore(STGM_READ) else { return String::new() };
         let Ok(v) = store.GetValue(&PKEY_Device_FriendlyName) else { return String::new() };
@@ -267,5 +272,28 @@ mod tests {
     #[ignore]
     fn reads_this_pc_audio() {
         println!("{:#?}", state().unwrap());
+    }
+}
+
+#[cfg(all(test, windows))]
+mod capture_probe {
+    /// `cargo test lists_microphones -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn lists_microphones() {
+        use windows::Win32::Media::Audio::{eCapture, eCommunications, eConsole, IMMDeviceEnumerator, MMDeviceEnumerator, DEVICE_STATE_ACTIVE};
+        use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED};
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+            let en: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).unwrap();
+            let console = en.GetDefaultAudioEndpoint(eCapture, eConsole).map(|d| super::win::name_of_pub(&d)).unwrap_or_default();
+            let comms = en.GetDefaultAudioEndpoint(eCapture, eCommunications).map(|d| super::win::name_of_pub(&d)).unwrap_or_default();
+            println!("padrão (apps/navegador): {console}");
+            println!("padrão (comunicações): {comms}");
+            let col = en.EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE).unwrap();
+            for i in 0..col.GetCount().unwrap() {
+                println!("  microfone: {}", super::win::name_of_pub(&col.Item(i).unwrap()));
+            }
+        }
     }
 }

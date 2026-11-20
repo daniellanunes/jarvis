@@ -72,7 +72,12 @@ pub const ACTIONS: &[ActionDef] = &[
 ];
 
 /// Jarvis hotkeys with fixed keys (not in Settings' table).
-pub const JARVIS_HOTKEYS: &[(&str, &str)] = &[("Ctrl+Alt+J", "jarvisScreen"), ("Ctrl+Alt+K", "jarvisTranslate")];
+pub const JARVIS_HOTKEYS: &[(&str, &str)] = &[
+    ("Ctrl+Alt+J", "jarvisScreen"),
+    ("Ctrl+Alt+K", "jarvisTranslate"),
+    // Push to talk: record now, stop on silence — no wake word needed.
+    ("Ctrl+Alt+V", "jarvisVoice"),
+];
 
 pub fn find(id: &str) -> Option<&'static ActionDef> {
     ACTIONS.iter().find(|a| a.id == id)

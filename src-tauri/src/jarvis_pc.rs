@@ -11,6 +11,91 @@ use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
+/// Start menu and Desktop shortcuts (.lnk / .url), by folded name. Rebuilt
+/// every 5 minutes: installing an app shows up without a restart.
+static SHORTCUTS: LazyLock<Mutex<Option<(std::time::Instant, Vec<(String, std::path::PathBuf)>)>>> = LazyLock::new(|| Mutex::new(None));
+
+fn shortcut_roots() -> Vec<std::path::PathBuf> {
+    let mut roots = Vec::new();
+    for (var, sub) in [
+        ("APPDATA", r"Microsoft\Windows\Start Menu\Programs"),
+        ("PROGRAMDATA", r"Microsoft\Windows\Start Menu\Programs"),
+        ("USERPROFILE", "Desktop"),
+        ("PUBLIC", "Desktop"),
+        ("USERPROFILE", r"OneDrive\Desktop"),
+        ("USERPROFILE", r"OneDrive\Área de Trabalho"),
+    ] {
+        if let Ok(base) = std::env::var(var) {
+            let p = std::path::Path::new(&base).join(sub);
+            if p.is_dir() {
+                roots.push(p);
+            }
+        }
+    }
+    roots
+}
+
+fn collect_shortcuts(dir: &std::path::Path, depth: usize, out: &mut Vec<(String, std::path::PathBuf)>) {
+    if depth > 4 {
+        return;
+    }
+    let Ok(rd) = std::fs::read_dir(dir) else { return };
+    for e in rd.flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            collect_shortcuts(&p, depth + 1, out);
+            continue;
+        }
+        let ext = p.extension().map(|x| x.to_string_lossy().to_lowercase()).unwrap_or_default();
+        if ext == "lnk" || ext == "url" {
+            let stem = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+            // Uninstallers and help files are never what "abre X" means.
+            let f = crate::file_search::fold(&stem);
+            if f.contains("uninstall") || f.contains("desinstal") || f.contains("readme") || f.contains("help") {
+                continue;
+            }
+            out.push((f, p));
+        }
+    }
+}
+
+/// Words that are not part of an app's name ("abre o app do OpenBot").
+fn app_query(name: &str) -> String {
+    crate::file_search::fold(name)
+        .split_whitespace()
+        .filter(|w| !matches!(*w, "o" | "a" | "os" | "as" | "app" | "aplicativo" | "programa" | "do" | "da" | "de" | "meu" | "minha"))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Best shortcut for an app name: exact name, then starts with, then contains.
+pub fn find_app_shortcut(name: &str) -> Option<std::path::PathBuf> {
+    let q = app_query(name);
+    if q.len() < 2 {
+        return None;
+    }
+    let mut guard = SHORTCUTS.lock().unwrap_or_else(|e| e.into_inner());
+    if guard.as_ref().is_none_or(|(t, _)| t.elapsed() > Duration::from_secs(300)) {
+        let mut list = Vec::new();
+        for r in shortcut_roots() {
+            collect_shortcuts(&r, 0, &mut list);
+        }
+        *guard = Some((std::time::Instant::now(), list));
+    }
+    let list = &guard.as_ref()?.1;
+    pick_shortcut(list, &q)
+}
+
+pub fn pick_shortcut(list: &[(String, std::path::PathBuf)], q: &str) -> Option<std::path::PathBuf> {
+    let nospace = |s: &str| s.replace([' ', '-', '_', '.'], "");
+    let qn = nospace(q);
+    list.iter()
+        .find(|(n, _)| n == q || nospace(n) == qn)
+        .or_else(|| list.iter().filter(|(n, _)| n.starts_with(q) || nospace(n).starts_with(&qn)).min_by_key(|(n, _)| n.len()))
+        .or_else(|| list.iter().filter(|(n, _)| q.len() >= 4 && (n.contains(q) || nospace(n).contains(&qn))).min_by_key(|(n, _)| n.len()))
+        .map(|(_, p)| p.clone())
+}
+
 /// Opens a known Windows app, URL, or friendly alias (e.g. "spotify", "chrome", "youtube").
 #[tauri::command]
 pub fn jarvis_open_target(target: String) -> Result<String, String> {
@@ -95,10 +180,18 @@ pub fn jarvis_open_target(target: String) -> Result<String, String> {
         "cmd" => ("cmd", "Prompt de Comando"),
         _ => {
             // If it looks like a domain (e.g. "github.com"), open as https://
-            if !lower.contains(' ') && lower.contains('.') {
+            if !lower.contains(' ') && lower.contains('.') && !std::path::Path::new(raw).exists() {
                 let url = format!("https://{raw}");
                 launch_shell(&url)?;
                 return Ok(format!("Abrindo {url}"));
+            }
+            // An installed app, by the name in the Start menu / Desktop.
+            if !std::path::Path::new(raw).exists() {
+                if let Some(lnk) = find_app_shortcut(raw) {
+                    let label = lnk.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| raw.to_string());
+                    launch_shell(&lnk.to_string_lossy())?;
+                    return Ok(format!("Abrindo {label}"));
+                }
             }
             (raw, raw)
         }
@@ -879,5 +972,35 @@ if ($session) {
     #[cfg(not(windows))]
     {
         Ok(NowPlaying::default())
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    /// `cargo test finds_this_pc_apps -- --ignored --nocapture` (looks, opens nothing).
+    #[test]
+    #[ignore]
+    fn finds_this_pc_apps() {
+        for name in ["OpenBot", "Obsidian", "Steam", "Discord", "visual studio code", "nada que exista aqui"] {
+            println!("{name:>22} → {:?}", find_app_shortcut(name));
+        }
+    }
+
+    #[test]
+    fn apps_are_found_by_their_shortcut_name() {
+        let list: Vec<(String, PathBuf)> = ["openbot", "obsidian", "visual studio code", "fivem - cfx re development kit (fxdk)", "fivem", "steam"]
+            .iter()
+            .map(|n| (n.to_string(), PathBuf::from(format!("{n}.lnk"))))
+            .collect();
+        let pick = |q: &str| pick_shortcut(&list, &app_query(q)).map(|p| p.to_string_lossy().to_string());
+        assert_eq!(pick("OpenBot").as_deref(), Some("openbot.lnk"));
+        assert_eq!(pick("o open bot").as_deref(), Some("openbot.lnk"));
+        assert_eq!(pick("FiveM").as_deref(), Some("fivem.lnk"));
+        assert_eq!(pick("visual studio").as_deref(), Some("visual studio code.lnk"));
+        assert_eq!(pick("xyz"), None);
     }
 }

@@ -113,6 +113,7 @@ def main() -> None:
         ("panel-routines", "open=tasks&sub=Rotinas"),
         ("settings-ai", "open=settings&scroll=Trocar de IA automaticamente"),
         ("settings-notch", "open=settings&sub=Notch&scroll=Informações no notch"),
+        ("settings-voice", "open=settings&enrolled=1&scroll=Reconhecimento da sua voz"),
         ("settings-folders", "open=settings&scroll=end"),
     ]
     imgs = {n: raw(q, 3800) for n, q in tabs}

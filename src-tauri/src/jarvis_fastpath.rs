@@ -21,6 +21,8 @@ pub enum Intent {
     Mic(bool),
     /// Switch the audio output ("fone", "caixa"…; "" = the next one).
     Output(String),
+    /// An installed app by its Start menu name ("abre o OpenBot").
+    OpenInstalled(String),
 }
 
 /// "o que eu tenho hoje", "minha agenda de amanhã", "compromissos da semana"…
@@ -277,7 +279,8 @@ pub fn parse(text: &str) -> Option<Intent> {
     }
 
     // ── Open an app or a site ──
-    for verb in ["abre ", "abra ", "abrir ", "inicia ", "inicie ", "entra no ", "entra na ", "entrar no ", "vai no ", "vai pro ", "vai para o "] {
+    // "abri" is how the transcription often writes "abre".
+    for verb in ["abre ", "abra ", "abrir ", "abri ", "inicia ", "inicie ", "executa ", "entra no ", "entra na ", "entrar no ", "vai no ", "vai pro ", "vai para o "] {
         if let Some(rest) = key.strip_prefix(verb) {
             let target = strip_articles(rest);
             if let Some((_, url)) = SITES.iter().find(|(name, _)| *name == target) {
@@ -288,6 +291,17 @@ pub fn parse(text: &str) -> Option<Intent> {
             }
             if !target.contains(' ') && target.contains('.') {
                 return Some(Intent::OpenSite(target.to_string()));
+            }
+            // Any other app: opened by its Start menu name when it exists
+            // (run() falls back to the AI when it does not).
+            let name: String = orig.chars().skip(orig.chars().count() - rest.chars().count()).collect();
+            let name = strip_articles(name.trim().trim_end_matches(['.', '!']).trim()).to_string();
+            // Projects, folders, files, notes, sites… are not apps: the AI handles those.
+            let not_an_app = ["projeto", "pasta", "arquivo", "nota", "documento", "site", "pagina", "planilha", "foto", "video", "musica", "e-mail", "email"]
+                .iter()
+                .any(|w| target.split_whitespace().next() == Some(*w));
+            if !name.is_empty() && !not_an_app && name.split_whitespace().count() <= 4 {
+                return Some(Intent::OpenInstalled(name));
             }
             return None;
         }
@@ -330,6 +344,10 @@ pub async fn run(intent: &Intent) -> Result<(String, Vec<String>), String> {
             done(msg)
         }
         Intent::OpenApp(app) => done(jarvis_pc::jarvis_open_target(app.clone())?),
+        Intent::OpenInstalled(name) => {
+            let lnk = jarvis_pc::find_app_shortcut(name).ok_or_else(|| format!("nenhum atalho para {name}"))?;
+            done(jarvis_pc::jarvis_open_target(lnk.to_string_lossy().to_string())?)
+        }
         Intent::OpenSite(url) => {
             let snap = crate::jarvis_browser::open(url, false).await?;
             let title = snap.lines().next().unwrap_or("").trim_start_matches("Página: ").to_string();
@@ -391,6 +409,15 @@ mod tests {
         assert_eq!(parse("aumenta o volume"), Some(Intent::VolumeDelta(10)));
         assert_eq!(parse("abaixa o volume"), Some(Intent::VolumeDelta(-10)));
         assert_eq!(parse("volume no máximo"), Some(Intent::Volume(100)));
+    }
+
+    #[test]
+    fn installed_apps_open_by_name_even_as_abri() {
+        assert_eq!(parse("Abri o OpenBot."), Some(Intent::OpenInstalled("openbot".into())));
+        assert_eq!(parse("Jarvis, abre o Steam"), Some(Intent::OpenInstalled("steam".into())));
+        assert_eq!(parse("abri o spotify"), Some(Intent::OpenApp("spotify".into())));
+        // A long request is not an app name: it goes to the AI.
+        assert_eq!(parse("abre aquele arquivo que eu mexi ontem à noite"), None);
     }
 
     #[test]

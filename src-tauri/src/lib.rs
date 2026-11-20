@@ -1,6 +1,7 @@
 // OpenJarvis for Windows — app wiring and the commands the island calls.
 
 mod agent_hooks;
+mod app_update;
 mod alerts;
 mod agents;
 mod audio;
@@ -52,6 +53,7 @@ mod sounds;
 mod spotify;
 mod spotify_api;
 mod tray;
+mod wakeword;
 mod weather;
 #[cfg(windows)]
 mod webview_drop;
@@ -523,6 +525,13 @@ fn chat_reset(chat: State<Chat>) {
     chat.reset();
 }
 
+/// A line from the island in the log (voice diagnostics), capped in length.
+#[tauri::command]
+fn jarvis_log(line: String) {
+    let clean: String = line.chars().filter(|c| !c.is_control()).take(400).collect();
+    log::line(clean);
+}
+
 /// Copies a dropped file into the inbox and reports its name back.
 #[tauri::command]
 fn ingest_file(path: String) -> Result<DroppedFile, String> {
@@ -755,7 +764,8 @@ pub fn run() {
                 }
             }
         }))
-        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None));
+        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
+        .plugin(tauri_plugin_updater::Builder::new().build());
     // Where no global shortcut can work, the plugin isn't even started.
     if platform::global_shortcuts_blocked().is_none() {
         builder = builder.plugin(shortcuts::plugin());
@@ -863,6 +873,15 @@ pub fn run() {
             google_calendar::calendar_update,
             google_calendar::calendar_delete,
             weather::weather_now,
+            jarvis_log,
+            app_update::update_check,
+            app_update::update_install,
+            wakeword::wakeword_status,
+            wakeword::wakeword_record_sample,
+            wakeword::wakeword_build,
+            wakeword::wakeword_reset,
+            wakeword::wakeword_listen_now,
+            wakeword::wakeword_restart,
             gmail::gmail_list,
             gmail::gmail_read,
             audio::audio_state,
@@ -947,6 +966,8 @@ pub fn run() {
             media_sessions::spawn(handle.clone());
             routines::spawn(handle.clone());
             alerts::spawn(handle.clone());
+            wakeword::spawn(handle.clone());
+            app_update::spawn(handle.clone());
             pc_monitor::configure(loaded_pc, loaded_fps, loaded_net);
 
             log::line(format!("--- OpenJarvis {} started ---", env!("CARGO_PKG_VERSION")));

@@ -60,6 +60,8 @@ pub fn skipped_dir(name: &str) -> bool {
     const SKIP: &[&str] = &[
         "node_modules", ".git", "target", ".venv", "venv", "__pycache__", ".next", "dist", "build", ".gradle", ".idea", ".vs",
         "$recycle.bin", "appdata", ".cache", ".npm", ".cargo", ".rustup", "site-packages", "obj", "bin", ".svn", "pods",
+        // Generated knowledge-graph exports: thousands of code-symbol notes.
+        "graphify", "graphify-out",
     ];
     let n = name.to_ascii_lowercase();
     n.starts_with('.') && n != ".obsidian" && n.len() > 1 && SKIP.contains(&n.as_str()) || SKIP.contains(&n.as_str())

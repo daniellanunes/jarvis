@@ -111,7 +111,8 @@ pub const PROMPT_RULES: &str = r#"
 10. "Bom dia", "como está meu dia", "o que tenho hoje": chame `daily_briefing` e responda em 2-4 frases naturais.
 11. Arquivos: `file_search` e depois `file_open`. Notas/Obsidian: `notes_search`, `notes_read`, `notes_write` ("anota isso…").
 12. Som: `audio_output` para trocar fone/caixa; `mic_mute` para o microfone; `set_volume` para volume. Internet lenta/caiu: `internet_status`. GitHub: `github_overview`.
-13. Mídia: `media_control` funciona em qualquer app tocando (YouTube, VLC, Netflix…), não só no Spotify."#;
+13. Mídia: `media_control` funciona em qualquer app tocando (YouTube, VLC, Netflix…), não só no Spotify.
+14. "Abre/abri X" (abri é como a transcrição escreve "abre"): para PROGRAMAS chame `open_target` só com o nome do app (ex.: "OpenBot", "Obsidian", "Steam") — ele acha o atalho no menu Iniciar. Nunca abra notas, .md ou arquivos soltos para atender "abre X" a menos que o usuário peça um arquivo. Responda sobre o app que ele pediu, não sobre o pedido anterior."#;
 
 pub fn status_line(name: &str, args: &Value) -> Option<(String, String)> {
     let s = |k: &str| args[k].as_str().unwrap_or("").to_string();

@@ -55,12 +55,22 @@ mod win {
         let _ = windows::Win32::System::WinRT::RoInitialize(windows::Win32::System::WinRT::RO_INIT_MULTITHREADED);
     });
 
+    /// When Windows' media service last failed: it is not asked again for 30 s
+    /// (a failing call can take seconds, and a voice command would wait on it).
+    static LAST_FAIL: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+
     fn manager() -> Option<Manager> {
         RO.with(|_| ());
+        if LAST_FAIL.lock().ok().and_then(|f| *f).is_some_and(|t| t.elapsed() < std::time::Duration::from_secs(30)) {
+            return None;
+        }
         match Manager::RequestAsync().and_then(|op| op.get()) {
             Ok(m) => Some(m),
             Err(e) => {
-                crate::log::line(format!("media sessions unavailable: {e}"));
+                crate::log::line(format!("media sessions unavailable (retry in 30 s): {e}"));
+                if let Ok(mut f) = LAST_FAIL.lock() {
+                    *f = Some(std::time::Instant::now());
+                }
                 None
             }
         }

@@ -974,92 +974,146 @@ async fn run_route(
 }
 
 
+/// Transcription keys that just hit a quota (key tail → until when).
+static STT_COOLDOWN: LazyLock<Mutex<HashMap<String, std::time::Instant>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn stt_key(provider: &str, token: &str) -> String {
+    format!("{provider}:{}", token.chars().rev().take(6).collect::<String>())
+}
+
+fn stt_resting(key: &str) -> bool {
+    STT_COOLDOWN.lock().ok().and_then(|m| m.get(key).copied()).is_some_and(|t| std::time::Instant::now() < t)
+}
+
+fn stt_rest(key: &str, secs: u64) {
+    if let Ok(mut m) = STT_COOLDOWN.lock() {
+        m.insert(key.to_string(), std::time::Instant::now() + std::time::Duration::from_secs(secs));
+    }
+}
+
+fn is_quota(err: &str) -> bool {
+    let e = err.to_lowercase();
+    e.contains("429") || e.contains("quota") || e.contains("rate limit") || e.contains("rate_limit") || e.contains("resource_exhausted")
+}
+
+/// One Groq Whisper call. Err carries the reason (and "429" on quota).
+async fn groq_transcribe(key: &str, bytes: Vec<u8>, mime: &str) -> Result<String, String> {
+    let ext = if mime.contains("wav") {
+        "wav"
+    } else if mime.contains("ogg") {
+        "ogg"
+    } else if mime.contains("mp4") || mime.contains("m4a") {
+        "m4a"
+    } else {
+        "webm"
+    };
+    let part = reqwest::multipart::Part::bytes(bytes)
+        .file_name(format!("voice.{ext}"))
+        .mime_str(mime)
+        .map_err(|e| e.to_string())?;
+    let form = reqwest::multipart::Form::new()
+        .part("file", part)
+        .text("model", GROQ_WHISPER_MODEL)
+        .text("language", "pt")
+        .text("response_format", "json");
+    let res = http_client()?
+        .post(GROQ_WHISPER_URL)
+        .bearer_auth(key)
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| net_err("Groq Whisper", e))?;
+    let status = res.status();
+    let body: serde_json::Value = res.json().await.map_err(|e| format!("Resposta inválida do Whisper: {e}"))?;
+    if status.is_success() {
+        return Ok(body["text"].as_str().unwrap_or("").trim().to_string());
+    }
+    Err(format!("Groq Whisper ({status}): {}", body["error"]["message"].as_str().unwrap_or("falha na transcrição")))
+}
+
+/// Speech to text. Tries every saved Groq key, then every Gemini key, then the
+/// Gemini account; a key that hits its quota rests for a while (60 s on Groq,
+/// 5 min on Gemini) so the others take over instead of failing every time.
 #[tauri::command]
 pub async fn jarvis_transcribe(audio_base64: String, mime_type: String) -> Result<String, String> {
     let trimmed_b64 = audio_base64.trim();
-    let bytes = decode_base64(trimmed_b64)
-        .map_err(|e| format!("Áudio base64 inválido: {e}"))?;
+    let bytes = decode_base64(trimmed_b64).map_err(|e| format!("Áudio base64 inválido: {e}"))?;
     if bytes.is_empty() {
         return Err("Áudio vazio".into());
     }
-
-    let clean_mime = if mime_type.trim().is_empty() {
+    let mime = if mime_type.trim().is_empty() {
         "audio/webm".to_string()
     } else {
         mime_type.split(';').next().unwrap_or("audio/webm").trim().to_string()
     };
 
-    let mut groq_err: Option<String> = None;
-    if let Some((key, _)) = jarvis_accounts::get_active_credentials("groq") {
-        let ext = if clean_mime.contains("wav") {
-            "wav"
-        } else if clean_mime.contains("ogg") {
-            "ogg"
-        } else if clean_mime.contains("mp4") || clean_mime.contains("m4a") {
-            "m4a"
-        } else {
-            "webm"
-        };
+    let mut errors: Vec<String> = Vec::new();
+    let mut tried = 0;
 
-        if let Ok(part) = reqwest::multipart::Part::bytes(bytes)
-            .file_name(format!("voice.{ext}"))
-            .mime_str(&clean_mime)
-        {
-            let form = reqwest::multipart::Form::new()
-                .part("file", part)
-                .text("model", GROQ_WHISPER_MODEL)
-                .text("language", "pt")
-                .text("response_format", "json");
-
-            let client = http_client()?;
-            match client
-                .post(GROQ_WHISPER_URL)
-                .bearer_auth(key)
-                .multipart(form)
-                .send()
-                .await
-            {
-                Ok(res) => {
-                    let status = res.status();
-                    match res.json::<serde_json::Value>().await {
-                        Ok(body) if status.is_success() => {
-                            return Ok(body["text"].as_str().unwrap_or("").trim().to_string());
-                        }
-                        Ok(body) => {
-                            let msg = body["error"]["message"]
-                                .as_str()
-                                .unwrap_or("Falha na transcrição");
-                            groq_err = Some(format!("Groq Whisper ({status}): {msg}"));
-                        }
-                        Err(e) => groq_err = Some(format!("Resposta inválida do Whisper: {e}")),
-                    }
+    // Groq: every key, the active one first (legacy single key as a fallback).
+    let mut groq: Vec<String> = jarvis_accounts::usable_accounts("groq").into_iter().map(|(_, t)| t).collect();
+    if let Some((t, _)) = jarvis_accounts::get_active_credentials("groq") {
+        if !groq.contains(&t) {
+            groq.insert(0, t);
+        }
+    }
+    for key in &groq {
+        let id = stt_key("groq", key);
+        if stt_resting(&id) {
+            continue;
+        }
+        tried += 1;
+        match groq_transcribe(key, bytes.clone(), &mime).await {
+            Ok(text) => return Ok(text),
+            Err(e) => {
+                if is_quota(&e) {
+                    stt_rest(&id, 60);
                 }
-                Err(e) => groq_err = Some(net_err("Groq Whisper", e)),
+                errors.push(e);
             }
         }
     }
 
-    // Fallback: transcribe via Gemini 3.8 Flash using active Gemini API key or Google OAuth account
-    let gemini_creds = jarvis_accounts::get_active_credentials("gemini");
-    let gemini_auth = gemini_creds
-        .as_ref()
-        .map(|(tok, method)| {
-            if method == "oauth" {
-                GeminiAuth::OAuth(tok.clone())
-            } else {
-                GeminiAuth::ApiKey(tok.clone())
+    // Gemini: every API key, then the signed-in account.
+    let mut gemini: Vec<GeminiAuth> = jarvis_accounts::usable_accounts("gemini").into_iter().map(|(_, t)| GeminiAuth::ApiKey(t)).collect();
+    match jarvis_accounts::get_active_credentials("gemini") {
+        Some((t, m)) if m == "oauth" => gemini.push(GeminiAuth::OAuth(t)),
+        Some((t, _)) if !gemini.iter().any(|g| matches!(g, GeminiAuth::ApiKey(k) if *k == t)) => gemini.insert(0, GeminiAuth::ApiKey(t)),
+        _ => {}
+    }
+    if let Some(t) = read_gemini_oauth_token() {
+        if !gemini.iter().any(|g| matches!(g, GeminiAuth::OAuth(k) if *k == t)) {
+            gemini.push(GeminiAuth::OAuth(t));
+        }
+    }
+    for auth in &gemini {
+        let token = match auth {
+            GeminiAuth::ApiKey(t) | GeminiAuth::OAuth(t) => t.clone(),
+        };
+        let id = stt_key("gemini", &token);
+        if stt_resting(&id) {
+            continue;
+        }
+        tried += 1;
+        match call_gemini_transcribe(auth, trimmed_b64, &mime).await {
+            Ok(text) => return Ok(text),
+            Err(e) => {
+                if is_quota(&e) {
+                    stt_rest(&id, 300);
+                }
+                errors.push(e);
             }
-        })
-        .or_else(|| read_gemini_oauth_token().map(GeminiAuth::OAuth));
-
-    if let Some(auth) = gemini_auth {
-        return call_gemini_transcribe(&auth, trimmed_b64, &clean_mime).await;
+        }
     }
 
-    Err(groq_err.unwrap_or_else(|| {
-        "Conecte uma conta Groq ou Gemini em Configurações → Cérebro para transcrição de voz."
-            .to_string()
-    }))
+    if tried == 0 && (!groq.is_empty() || !gemini.is_empty()) {
+        return Err("429: todas as chaves de transcrição estão no limite agora; tente de novo em um minuto.".into());
+    }
+    match errors.len() {
+        0 => Err("Conecte uma conta Groq ou Gemini em Ajustes → IA & Voz para transcrição de voz.".into()),
+        1 => Err(errors.remove(0)),
+        _ => Err(format!("Nenhuma chave conseguiu transcrever. {}", errors.join(" · "))),
+    }
 }
 
 /// Synthesizes natural pt-BR neural speech via Edge TTS (`pt-BR-AntonioNeural`)
@@ -2874,5 +2928,30 @@ mod tests {
         let a = openbot_delivery_id(1_700_000_000);
         let b = openbot_delivery_id(1_700_000_000);
         assert_ne!(a, b);
+    }
+}
+
+#[cfg(test)]
+mod voice_probe {
+    /// Sends %TEMP%\jarvis-voice-test.wav through the real transcription path
+    /// with the connected keys: `cargo test transcribes_a_sample -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn transcribes_a_sample() {
+        let path = std::env::temp_dir().join("jarvis-voice-test.wav");
+        let bytes = std::fs::read(&path).expect("gere o WAV de teste antes");
+        const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut b64 = String::new();
+        for c in bytes.chunks(3) {
+            let n = (c[0] as u32) << 16 | (*c.get(1).unwrap_or(&0) as u32) << 8 | *c.get(2).unwrap_or(&0) as u32;
+            b64.push(T[(n >> 18) as usize & 63] as char);
+            b64.push(T[(n >> 12) as usize & 63] as char);
+            b64.push(if c.len() > 1 { T[(n >> 6) as usize & 63] as char } else { '=' });
+            b64.push(if c.len() > 2 { T[n as usize & 63] as char } else { '=' });
+        }
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let started = std::time::Instant::now();
+        let r = rt.block_on(super::jarvis_transcribe(b64, "audio/wav".into()));
+        println!("{:?} em {:?}", r, started.elapsed());
     }
 }
