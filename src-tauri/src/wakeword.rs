@@ -80,6 +80,66 @@ pub fn resample(input: &[f32], from_rate: u32) -> Vec<f32> {
         .collect()
 }
 
+/// Streaming 16 kHz conversion for the microphone. Before dropping to 16 kHz
+/// it removes what is above ~7.2 kHz (a windowed-sinc low-pass): without it,
+/// the hiss and the top of "s"/"ch" sounds fold back into the speech band as
+/// noise — worse for both the wake word and the transcription. Keeps its state
+/// between blocks, so block edges leave no clicks.
+pub struct Resampler {
+    ratio: f64,
+    taps: Vec<f32>,
+    hist: Vec<f32>,
+    filtered: Vec<f32>,
+    pos: f64,
+}
+
+impl Resampler {
+    pub fn new(from_rate: u32) -> Self {
+        let ratio = from_rate as f64 / RATE as f64;
+        let taps = if ratio > 1.0 { lowpass(7200.0 / from_rate as f64, 63) } else { vec![1.0] };
+        Self { ratio, hist: vec![0.0; taps.len() - 1], taps, filtered: Vec::new(), pos: 0.0 }
+    }
+
+    pub fn process(&mut self, input: &[f32]) -> Vec<f32> {
+        if (self.ratio - 1.0).abs() < f64::EPSILON {
+            return input.to_vec();
+        }
+        let n = self.taps.len();
+        self.hist.extend_from_slice(input);
+        for w in self.hist.windows(n) {
+            self.filtered.push(w.iter().zip(&self.taps).map(|(a, b)| a * b).sum());
+        }
+        let keep = self.hist.len() - (n - 1);
+        self.hist.drain(..keep);
+        let mut out = Vec::with_capacity((self.filtered.len() as f64 / self.ratio) as usize + 1);
+        while self.pos + 1.0 < self.filtered.len() as f64 {
+            let i0 = self.pos.floor() as usize;
+            let f = (self.pos - i0 as f64) as f32;
+            out.push(self.filtered[i0] * (1.0 - f) + self.filtered[i0 + 1] * f);
+            self.pos += self.ratio;
+        }
+        let used = (self.pos.floor() as usize).min(self.filtered.len());
+        self.filtered.drain(..used);
+        self.pos -= used as f64;
+        out
+    }
+}
+
+/// Windowed-sinc (Hamming) low-pass; `cutoff` as a fraction of the sample rate.
+fn lowpass(cutoff: f64, len: usize) -> Vec<f32> {
+    let m = (len - 1) as f64 / 2.0;
+    let mut h: Vec<f64> = (0..len)
+        .map(|i| {
+            let x = i as f64 - m;
+            let sinc = if x == 0.0 { 2.0 * cutoff } else { (2.0 * std::f64::consts::PI * cutoff * x).sin() / (std::f64::consts::PI * x) };
+            sinc * (0.54 - 0.46 * (2.0 * std::f64::consts::PI * i as f64 / (len - 1) as f64).cos())
+        })
+        .collect();
+    let sum: f64 = h.iter().sum();
+    h.iter_mut().for_each(|v| *v /= sum);
+    h.into_iter().map(|v| v as f32).collect()
+}
+
 pub fn rms(frame: &[f32]) -> f32 {
     if frame.is_empty() {
         return 0.0;
@@ -128,6 +188,10 @@ pub struct EndOfSpeech {
     heard: bool,
     quiet_ms: f32,
     elapsed_ms: f32,
+    /** How long a silence ends it. */
+    pause_ms: f32,
+    /** Cut here anyway. */
+    max_ms: f32,
 }
 
 pub enum Speech {
@@ -141,8 +205,15 @@ pub enum Speech {
 }
 
 impl EndOfSpeech {
+    /// For a single word (the enrollment samples): ends 0.7 s after it.
     pub fn new(room_floor: f32) -> Self {
-        Self { floor: room_floor.max(0.002), peak: 0.0, heard: false, quiet_ms: 0.0, elapsed_ms: 0.0 }
+        Self { floor: room_floor.max(0.002), peak: 0.0, heard: false, quiet_ms: 0.0, elapsed_ms: 0.0, pause_ms: 700.0, max_ms: 12000.0 }
+    }
+
+    /// For a command: a breath or a moment to think in the middle of the
+    /// sentence (up to ~1.8 s) does not end it, and a longer request fits (20 s).
+    pub fn command(room_floor: f32) -> Self {
+        Self { pause_ms: 1800.0, max_ms: 20000.0, ..Self::new(room_floor) }
     }
 
     /// Feed `ms` of audio at level `level`.
@@ -160,14 +231,14 @@ impl EndOfSpeech {
             self.quiet_ms = 0.0;
         } else if self.heard {
             self.quiet_ms += ms;
-            if self.quiet_ms >= 700.0 {
+            if self.quiet_ms >= self.pause_ms {
                 return Speech::Done;
             }
         }
         if !self.heard && self.elapsed_ms > 6000.0 {
             return Speech::Nothing;
         }
-        if self.elapsed_ms > 12000.0 {
+        if self.elapsed_ms > self.max_ms {
             return Speech::Limit;
         }
         Speech::Going
@@ -381,6 +452,7 @@ fn base64(bytes: &[u8]) -> String {
 fn run_session(app: &AppHandle, ctl: &Receiver<Ctl>) -> Result<(), String> {
     let (tx, audio_rx) = mpsc::channel::<Vec<f32>>();
     let (_stream, rate, mic) = open_mic(tx)?;
+    let mut to16k = Resampler::new(rate);
     let threshold = crate::settings::load().jarvis_wake_threshold;
     let mut detector = if model_path().exists() { Some(load_detector(threshold)?) } else { None };
     let detect = detector.is_some() && wanted();
@@ -405,7 +477,7 @@ fn run_session(app: &AppHandle, ctl: &Receiver<Ctl>) -> Result<(), String> {
                 }
                 Ctl::ListenNow => {
                     emit_state(app, "listening");
-                    mode = Mode::Command { audio: Vec::new(), end: EndOfSpeech::new(floor), verify: None };
+                    mode = Mode::Command { audio: Vec::new(), end: EndOfSpeech::command(floor), verify: None };
                 }
             }
         }
@@ -414,7 +486,7 @@ fn run_session(app: &AppHandle, ctl: &Receiver<Ctl>) -> Result<(), String> {
             Err(mpsc::RecvTimeoutError::Timeout) => continue,
             Err(mpsc::RecvTimeoutError::Disconnected) => return Err("O microfone parou.".into()),
         };
-        pending.extend(resample(&block, rate));
+        pending.extend(to16k.process(&block));
 
         while pending.len() >= frame {
             let chunk: Vec<f32> = pending.drain(..frame).collect();
@@ -436,7 +508,7 @@ fn run_session(app: &AppHandle, ctl: &Receiver<Ctl>) -> Result<(), String> {
                         // Recording starts now, but "listening" shows in the
                         // notch only once the name is confirmed (step()).
                         let verify = verify_wake(recent.drain(..).collect());
-                        mode = Mode::Command { audio: Vec::new(), end: EndOfSpeech::new(floor), verify: Some(verify) };
+                        mode = Mode::Command { audio: Vec::new(), end: EndOfSpeech::command(floor), verify: Some(verify) };
                     }
                 }
                 continue;
@@ -489,6 +561,7 @@ pub fn spawn(app: AppHandle) {
 fn run_on_demand(app: &AppHandle, first: Ctl, ctl: &Receiver<Ctl>) -> Result<(), String> {
     let (atx, audio_rx) = mpsc::channel::<Vec<f32>>();
     let (_stream, rate, _mic) = open_mic(atx)?;
+    let mut to16k = Resampler::new(rate);
     let frame = RATE * 30 / 1000;
     let mut pending = Vec::new();
     // Room level unknown yet: a quiet default, adapted while idle.
@@ -508,7 +581,7 @@ fn run_on_demand(app: &AppHandle, first: Ctl, ctl: &Receiver<Ctl>) -> Result<(),
                 Ctl::RecordSample(reply) => mode = Mode::Sample { audio: Vec::new(), end: EndOfSpeech::new(floor), reply },
                 Ctl::ListenNow => {
                     emit_state(app, "listening");
-                    mode = Mode::Command { audio: Vec::new(), end: EndOfSpeech::new(floor), verify: None };
+                    mode = Mode::Command { audio: Vec::new(), end: EndOfSpeech::command(floor), verify: None };
                 }
             }
             continue;
@@ -521,7 +594,7 @@ fn run_on_demand(app: &AppHandle, first: Ctl, ctl: &Receiver<Ctl>) -> Result<(),
             Err(mpsc::RecvTimeoutError::Timeout) => continue,
             Err(_) => return Err("O microfone parou.".into()),
         };
-        pending.extend(resample(&block, rate));
+        pending.extend(to16k.process(&block));
         while pending.len() >= frame {
             let chunk: Vec<f32> = pending.drain(..frame).collect();
             let level = rms(&chunk);
@@ -696,6 +769,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_streaming_resampler_keeps_speech_and_drops_the_hiss() {
+        let tone = |hz: f32| -> Vec<f32> { (0..48_000).map(|i| (2.0 * std::f32::consts::PI * hz * i as f32 / 48_000.0).sin() * 0.5).collect() };
+        let run = |input: &[f32]| -> Vec<f32> {
+            let mut r = Resampler::new(48_000);
+            // In odd-sized blocks, as the microphone delivers them.
+            input.chunks(441).flat_map(|c| r.process(c)).collect()
+        };
+        let voice = run(&tone(1_000.0));
+        assert!((15_900..=16_000).contains(&voice.len()), "{}", voice.len());
+        assert!(rms(&voice[2_000..]) > 0.3, "speech band kept: {}", rms(&voice[2_000..]));
+        // 13 kHz would fold to 3 kHz with plain decimation: now it is gone.
+        let hiss = run(&tone(13_000.0));
+        assert!(rms(&hiss[2_000..]) < 0.02, "alias left: {}", rms(&hiss[2_000..]));
+        assert_eq!(Resampler::new(16_000).process(&[0.1, 0.2]), vec![0.1, 0.2]);
+    }
+
+    #[test]
     fn resampling_keeps_the_duration() {
         let one_second_48k = vec![0.1f32; 48_000];
         assert_eq!(resample(&one_second_48k, 48_000).len(), 16_000);
@@ -752,6 +842,30 @@ mod tests {
         for no in ["", "Música", "Obrigado.", "e aí, tudo bem?", "já vi isso", "Jair", "Javascript"] {
             assert!(!says_jarvis(no), "{no}");
         }
+    }
+
+    #[test]
+    fn a_breath_in_the_middle_of_a_command_does_not_end_it() {
+        let mut e = EndOfSpeech::command(0.004);
+        for _ in 0..30 {
+            assert!(matches!(e.feed(0.1, 30.0), Speech::Going));
+        }
+        // ~1 s to breathe: still recording.
+        for _ in 0..33 {
+            assert!(matches!(e.feed(0.003, 30.0), Speech::Going));
+        }
+        // The sentence goes on, then really ends ~1.8 s later.
+        for _ in 0..20 {
+            assert!(matches!(e.feed(0.1, 30.0), Speech::Going));
+        }
+        let mut done_after = 0;
+        for i in 0..100 {
+            if matches!(e.feed(0.003, 30.0), Speech::Done) {
+                done_after = i;
+                break;
+            }
+        }
+        assert!((58..=61).contains(&done_after), "{done_after}");
     }
 
     #[test]

@@ -1,6 +1,7 @@
 //! The newer Jarvis tools, kept out of jarvis_brain.rs: Gmail (only when the
 //! user asks), the "bom dia" briefing, files, Obsidian notes, audio outputs
-//! and microphone, internet, GitHub and WhatsApp (through OpenBot). Messages
+//! and microphone, internet, GitHub and WhatsApp (WhatsApp Web in the Jarvis
+//! browser, see whatsapp.rs; OpenBot as a fallback). Messages
 //! that leave the PC (e-mail, WhatsApp) always wait for Permitir.
 
 use serde_json::{json, Value};
@@ -95,11 +96,24 @@ pub fn declarations() -> Vec<Value> {
         }),
         json!({
             "name": "whatsapp_send",
-            "description": "Manda uma mensagem de WhatsApp pelo OpenBot. SEMPRE fica aguardando o usuário tocar em Permitir antes de enviar. Só quando o usuário pediu para mandar mensagem.",
+            "description": "Manda uma mensagem de WhatsApp. SEMPRE fica aguardando o usuário tocar em Permitir antes de enviar. Só quando o usuário pediu para mandar mensagem.",
             "parameters": {"type": "OBJECT", "properties": {
-                "to": {"type": "STRING", "description": "Contato (nome como o usuário falou) ou número."},
+                "to": {"type": "STRING", "description": "Nome do contato ou grupo como o usuário falou, um número com DDD, ou \"eu\" quando é para o próprio usuário (\"manda pra mim\")."},
                 "message": {"type": "STRING"}
             }, "required": ["to", "message"]}
+        }),
+        json!({
+            "name": "whatsapp_read",
+            "description": "Lê as últimas mensagens de UMA conversa do WhatsApp. Só quando o usuário pediu para ler aquela conversa.",
+            "parameters": {"type": "OBJECT", "properties": {
+                "chat": {"type": "STRING", "description": "Nome do contato ou grupo, número, ou \"eu\" (conversa consigo mesmo)."},
+                "count": {"type": "INTEGER", "description": "Quantas mensagens (padrão 10, máx. 40)."}
+            }, "required": ["chat"]}
+        }),
+        json!({
+            "name": "whatsapp_unread",
+            "description": "Lista as conversas do WhatsApp com mensagens não lidas (nome, quantas e a última). Só quando o usuário perguntar.",
+            "parameters": {"type": "OBJECT", "properties": {}}
         }),
     ]
 }
@@ -107,7 +121,7 @@ pub fn declarations() -> Vec<Value> {
 /// Extra rules for the system prompt.
 pub const PROMPT_RULES: &str = r#"
 8. Gmail: SÓ use `gmail_search`/`gmail_read`/`gmail_draft` quando o usuário pedir explicitamente algo sobre e-mail. Nunca mencione, conte ou resuma e-mails por iniciativa própria. Para responder/escrever, crie o rascunho com `gmail_draft`; com send=true o envio fica aguardando Permitir — avise isso.
-9. WhatsApp: use `whatsapp_send` (fica aguardando Permitir). Escreva a mensagem como o usuário escreveria.
+9. WhatsApp: SÓ use as ferramentas de WhatsApp quando o usuário pedir explicitamente; nunca leia, conte ou comente mensagens por iniciativa própria. Enviar: `whatsapp_send` (fica aguardando Permitir; "manda pra mim" → to "eu"). Ler uma conversa: `whatsapp_read`. "Tenho mensagem nova?": `whatsapp_unread`. Escreva a mensagem como o usuário escreveria e resuma o que leu em poucas frases.
 10. "Bom dia", "como está meu dia", "o que tenho hoje": chame `daily_briefing` e responda em 2-4 frases naturais.
 11. Arquivos: `file_search` e depois `file_open`. Notas/Obsidian: `notes_search`, `notes_read`, `notes_write` ("anota isso…").
 12. Som: `audio_output` para trocar fone/caixa; `mic_mute` para o microfone; `set_volume` para volume. Internet lenta/caiu: `internet_status`. GitHub: `github_overview`.
@@ -130,6 +144,8 @@ pub fn status_line(name: &str, args: &Value) -> Option<(String, String)> {
         "internet_status" => ("Testando a internet…".into(), String::new()),
         "github_overview" => ("Olhando o GitHub…".into(), String::new()),
         "whatsapp_send" => ("Preparando mensagem…".into(), s("to")),
+        "whatsapp_read" => ("Lendo o WhatsApp…".into(), s("chat")),
+        "whatsapp_unread" => ("Vendo o WhatsApp…".into(), String::new()),
         _ => return None,
     })
 }
@@ -246,11 +262,22 @@ pub async fn run_confirmed(kind: &str, command: &str) -> Option<Result<String, S
         WHATSAPP => {
             let v: Value = serde_json::from_str(command).unwrap_or(Value::Null);
             let (to, msg) = (v["to"].as_str().unwrap_or(""), v["message"].as_str().unwrap_or(""));
-            let order = format!("Envie esta mensagem no WhatsApp para {to}, exatamente com este texto, sem alterar:\n{msg}");
-            Some(crate::jarvis_brain::send_to_openbot_webhook(order, None, Some("orquestrador".into())).await.map(|_| format!("Mensagem para {to} enviada ao OpenBot.")))
+            match crate::whatsapp::send(to, msg).await {
+                // Not linked here but OpenBot is set up: it sends instead.
+                Err(e) if e == crate::whatsapp::NEED_LOGIN && openbot_ready() => {
+                    let order = format!("Envie esta mensagem no WhatsApp para {to}, exatamente com este texto, sem alterar:\n{msg}");
+                    Some(crate::jarvis_brain::send_to_openbot_webhook(order, None, Some("orquestrador".into())).await.map(|_| format!("Mensagem para {to} enviada ao OpenBot.")))
+                }
+                other => Some(other),
+            }
         }
         _ => None,
     }
+}
+
+/// OpenBot's webhook has its secret (the WhatsApp fallback can be used).
+fn openbot_ready() -> bool {
+    crate::secrets::get("openbot-webhook-secret").is_some() || crate::jarvis_accounts::read_env_or_hkcu("OPENBOT_WEBHOOK_SECRET").is_some()
 }
 
 fn ok(out: String) -> (bool, String, String) {
@@ -325,16 +352,18 @@ pub async fn run(
         "github_overview" => github_overview().await.map(|p| serde_json::to_string(&p).unwrap_or_default()),
         "whatsapp_send" => match (s("to"), s("message")) {
             (Some(to), Some(msg)) => {
-                if crate::secrets::get("openbot-webhook-secret").is_none() && crate::jarvis_accounts::read_env_or_hkcu("OPENBOT_WEBHOOK_SECRET").is_none() {
-                    Err("O OpenBot não está configurado (webhook). Configure em Ajustes.".into())
-                } else {
-                    let cmd = json!({ "to": to, "message": msg }).to_string();
-                    queue(WHATSAPP, &cmd, &format!("WhatsApp para {to}: {msg}"));
-                    Ok(format!("Mensagem para {to} AGUARDANDO o usuário tocar em Permitir. Não diga que já enviou."))
-                }
+                let cmd = crate::whatsapp::pending_command(&to, &msg);
+                let who = if crate::whatsapp::is_self(&to) { "você mesmo".to_string() } else { to.clone() };
+                queue(WHATSAPP, &cmd, &format!("WhatsApp para {who}: {msg}"));
+                Ok(format!("Mensagem para {who} AGUARDANDO o usuário tocar em Permitir. Não diga que já enviou."))
             }
             _ => Err("Falta o contato ou a mensagem.".into()),
         },
+        "whatsapp_read" => match s("chat") {
+            Some(chat) => crate::whatsapp::read(&chat, args["count"].as_u64().unwrap_or(10) as usize).await,
+            None => Err("Qual conversa?".into()),
+        },
+        "whatsapp_unread" => crate::whatsapp::unread().await,
         _ => return None,
     };
     Some(match r {

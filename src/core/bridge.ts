@@ -316,6 +316,11 @@ export const Bridge = {
   netSpeedTest: () => callOrThrow<number>("net_speed_test"),
   // ── Local wake word (the user's enrolled "Jarvis") ─────────────────────────
   wakewordStatus: () => call<WakeStatus>("wakeword_status"),
+  // ── WhatsApp inside Jarvis (whatsapp.rs) ─────────────────────────────────
+  whatsappState: () => callOrThrow<WaState>("whatsapp_state"),
+  whatsappChats: () => callOrThrow<WaChat[]>("whatsapp_chats"),
+  whatsappThread: (chat: string) => callOrThrow<WaThread>("whatsapp_thread", { chat }),
+  whatsappSend: (chat: string, text: string) => callOrThrow<string>("whatsapp_send", { chat, text }),
   wakewordRecordSample: (index: number) => callOrThrow<number>("wakeword_record_sample", { index }),
   wakewordBuild: () => callOrThrow<WakeStatus>("wakeword_build"),
   wakewordReset: () => call<WakeStatus>("wakeword_reset"),
@@ -368,6 +373,32 @@ export interface WeatherNow {
   isDay: boolean;
   kind: "clear" | "partly" | "cloudy" | "fog" | "drizzle" | "rain" | "snow" | "storm";
   label: string;
+}
+
+export interface WaState {
+  /** "ready" | "qr" | "loading" */
+  state: string;
+  /** The QR code to scan (data: URL), while not linked. */
+  qr: string | null;
+}
+
+export interface WaChat {
+  title: string;
+  last: string;
+  time: string;
+  unread: number;
+}
+
+export interface WaMessage {
+  when: string;
+  from: string;
+  text: string;
+  mine: boolean;
+}
+
+export interface WaThread {
+  title: string;
+  messages: WaMessage[];
 }
 
 export interface UpdateInfo {

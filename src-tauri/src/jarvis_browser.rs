@@ -69,20 +69,33 @@ async fn ensure_browser(start_url: Option<&str>) -> Result<bool, String> {
     if is_up().await {
         return Ok(false);
     }
+    launch(start_url, false)?;
+    wait_up().await?;
+    Ok(true)
+}
+
+/// Starts the Jarvis browser; `minimized` for work in the background
+/// (WhatsApp), else maximized for pages the user watches.
+fn launch(start_url: Option<&str>, minimized: bool) -> Result<(), String> {
     let exe = browser_exe().ok_or("Não encontrei o Google Chrome nem o Microsoft Edge instalados.")?;
     let profile = profile_dir();
     let _ = std::fs::create_dir_all(&profile);
     let mut cmd = std::process::Command::new(exe);
     cmd.arg(format!("--remote-debugging-port={PORT}"))
         .arg(format!("--user-data-dir={}", profile.display()))
-        .args(["--no-first-run", "--no-default-browser-check", "--start-maximized"]);
+        .args(["--no-first-run", "--no-default-browser-check"])
+        .arg(if minimized { "--start-minimized" } else { "--start-maximized" });
     cmd.arg(start_url.unwrap_or("about:blank"));
     cmd.spawn().map_err(|e| format!("Não consegui abrir o navegador do Jarvis: {e}"))?;
+    Ok(())
+}
+
+async fn wait_up() -> Result<(), String> {
     for _ in 0..32 {
         tokio::time::sleep(Duration::from_millis(250)).await;
         if is_up().await {
             *ACTIVE_TARGET.lock().unwrap_or_else(|e| e.into_inner()) = None;
-            return Ok(true);
+            return Ok(());
         }
     }
     Err("O navegador do Jarvis não respondeu a tempo.".into())
@@ -112,7 +125,8 @@ async fn active_ws() -> Result<String, String> {
     let remembered = ACTIVE_TARGET.lock().unwrap_or_else(|e| e.into_inner()).clone();
     let chosen = remembered
         .and_then(|id| list.iter().find(|t| t["id"] == id.as_str()).cloned())
-        .or_else(|| list.first().cloned());
+        // Never browse in the WhatsApp tab (whatsapp.rs keeps it for itself).
+        .or_else(|| list.iter().find(|t| !t["url"].as_str().unwrap_or("").starts_with(crate::whatsapp::URL)).cloned());
     let t = match chosen {
         Some(t) => t,
         None => new_tab("about:blank").await?,
@@ -137,6 +151,10 @@ struct Cdp {
 impl Cdp {
     async fn open() -> Result<Self, String> {
         let url = active_ws().await?;
+        Self::connect(&url).await
+    }
+
+    async fn connect(url: &str) -> Result<Self, String> {
         let (ws, _) = tokio::time::timeout(Duration::from_secs(5), tokio_tungstenite::connect_async(url))
             .await
             .map_err(|_| "Navegador do Jarvis não respondeu.".to_string())?

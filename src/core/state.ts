@@ -192,6 +192,8 @@ export interface Settings {
   jarvisMicSensitivity?: "alta" | "media" | "baixa";
   /** Name of that microphone (the native wake word finds it by name). */
   jarvisMicName?: string;
+  /** Words the transcription should know (names, games, apps), comma separated. */
+  jarvisVoiceVocab?: string;
   /** "local": the enrolled "Jarvis" spotted on the PC; "cloud": transcribed sentences. */
   jarvisWakeEngine?: "local" | "cloud";
   /** Local wake word: 0.35 (easier) – 0.7 (stricter). */
@@ -247,6 +249,7 @@ export const DEFAULT_SETTINGS: Settings = {
   jarvisMicDevice: "",
   jarvisMicSensitivity: "alta",
   jarvisMicName: "",
+  jarvisVoiceVocab: "",
   jarvisWakeEngine: "local",
   jarvisWakeThreshold: 0.45,
 };

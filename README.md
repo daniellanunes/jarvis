@@ -33,7 +33,8 @@ acha arquivos, anota no Obsidian, mostra clima, uso do PC e FPS dos jogos — tu
   - [5. Spotify](#5-spotify)
   - [6. GitHub](#6-github)
   - [7. O notch: clima, uso do PC, FPS e mais](#7-o-notch-clima-uso-do-pc-fps-e-mais)
-  - [8. OpenBot e WhatsApp (opcional)](#8-openbot-e-whatsapp-opcional)
+  - [8. WhatsApp](#8-whatsapp)
+  - [9. OpenBot (opcional)](#9-openbot-opcional)
 - [Usando no dia a dia](#usando-no-dia-a-dia)
 - [Privacidade e segurança](#privacidade-e-segurança)
 - [Solução de problemas](#solução-de-problemas)
@@ -93,6 +94,8 @@ Clique no notch para abrir o painel.
 
 - **Conversa natural em português**, por voz (palavra de ativação “Jarvis”) ou texto.
 - **Cadastro da sua voz**: o “Jarvis” é reconhecido no próprio PC — na hora, sem internet e mesmo com barulho em volta.
+- **Conversa de verdade**: quando ele te faz uma pergunta, já fica ouvindo a resposta — não precisa dizer “Jarvis” de novo. E as respostas são faladas sem ler símbolos (nada de “asterisco”).
+- **WhatsApp dentro do notch**: veja as conversas, leia e responda sem abrir nada; por voz ele manda, lê e diz o que chegou — só quando você pede.
 - **Executa de verdade**: toca a música exata, abre sites e clica neles num navegador próprio, controla volume e mídia, cria eventos, procura arquivos, anota no Obsidian…
 - **Atalhos instantâneos** para pedidos simples (“pausa”, “volume 30”, “bom dia”, “muda pro fone”) — respondem na hora, sem esperar a IA.
 - **“O que tem na minha tela?”** — ela olha a tela e explica (Ctrl+Alt+J).
@@ -188,6 +191,9 @@ Com o cadastro, o “Jarvis” é reconhecido **no próprio PC** (com o [Rustpot
 | **Sensibilidade** do microfone (Alta / Média / Baixa) | Vale para o modo sem cadastro e para o Ctrl+Alt+V. **Alta** para voz normal; **Baixa** em lugar muito barulhento. |
 | **Nível agora** | Barra ao vivo da sua voz (no modo sem cadastro): falando normal, ela deve ficar **verde e passar da linha**. |
 | **Usando o reconhecimento local / nuvem** | Para comparar. Sem cadastro, o Jarvis usa a nuvem (transcreve as frases e procura “Jarvis” nelas). |
+| **Palavras que o Jarvis deve conhecer** | Ele entende errado um nome, jogo ou app (ex.: “UFC 26” em vez de “FC 26”)? Escreva aqui, separado por vírgula. Apps comuns (Spotify, WhatsApp, Claude…) já estão incluídos. |
+
+Pode falar no seu ritmo: uma pausa para respirar (até ~2 s) não encerra o pedido. E quando o Jarvis termina a resposta com uma pergunta, ele já abre a escuta — é só responder.
 
 **Dica:** com o ambiente muito barulhento, use **Ctrl+Alt+V** — aperte, fale o comando (sem dizer “Jarvis”) e ele para sozinho quando você termina.
 
@@ -279,14 +285,24 @@ Ajustes → **Notch**:
 
 **Temperatura de CPU/GPU:** o Windows não tem um jeito próprio de ler esses sensores. Abra o [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) (deixe rodando) e a temperatura aparece ao passar o mouse nos círculos.
 
-### 8. OpenBot e WhatsApp (opcional)
+### 8. WhatsApp
 
-Se você usa um OpenBot próprio, o Jarvis pode delegar tarefas de programação e mandar mensagens de WhatsApp por ele:
+O WhatsApp fica **dentro do Jarvis**, numa aba do notch — sem navegador por fora.
+
+1. Abra o notch → aba **WhatsApp**. Aparece um QR code.
+2. No celular: WhatsApp → **⋮ / Configurações → Aparelhos conectados → Conectar um aparelho** → aponte para o código.
+3. Pronto: a aba mostra suas conversas (não lidas em destaque). Clique numa para ler e responder ali mesmo.
+
+Por voz: “manda no WhatsApp pra mim: comprar pão”, “lê a conversa com a Ana”, “tenho mensagem nova no WhatsApp?”. O Jarvis **só lê quando você pede**, e o que a IA for enviar espera você tocar em **Permitir** (o que você mesmo digita na aba vai direto).
+
+> A sessão fica só no seu PC (`%LOCALAPPDATA%\OpenJarvis\whatsapp-web`). Para desconectar, remova o aparelho em *Aparelhos conectados* no celular.
+
+### 9. OpenBot (opcional)
+
+Se você usa um OpenBot próprio, o Jarvis pode delegar tarefas de programação para ele (e, se o WhatsApp não estiver conectado no Jarvis, mandar mensagens por ele):
 
 1. Ajustes → **IA & Voz** → **Pastas e integrações** → **Webhook do OpenBot**: a URL `https://` do seu webhook.
 2. **Segredo do webhook**: o segredo HMAC (fica no cofre do Windows).
-
-Toda mensagem de WhatsApp espera você tocar em **Permitir**.
 
 ---
 
@@ -309,7 +325,8 @@ Diga **“Jarvis”** e o pedido, clique no notch e digite, ou use **Ctrl+Alt+Es
 | “Abre o YouTube e procura lo-fi” | Navegador do Jarvis abre, busca e clica |
 | “O que tem na minha tela?” | Lê a tela e explica |
 | “Minha internet tá lenta?” | Ping e teste de velocidade |
-| “Manda no WhatsApp pra Ana que vou atrasar” | Via OpenBot, com Permitir |
+| “Manda no WhatsApp pra Ana que vou atrasar” / “manda pra mim: comprar pão” | WhatsApp do notch, com Permitir |
+| “Tenho mensagem nova no WhatsApp?” / “lê a conversa com a Ana” | Só quando você pede |
 
 ### Atalhos de teclado
 

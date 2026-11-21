@@ -122,6 +122,8 @@ pub struct Settings {
     pub jarvis_wake_engine: String,
     /// Local wake word threshold, 0.3 (easy) – 0.8 (strict).
     pub jarvis_wake_threshold: f32,
+    /// Words the transcription should know (names, games, apps), comma separated.
+    pub jarvis_voice_vocab: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -203,6 +205,7 @@ impl Default for Settings {
             jarvis_mic_name: String::new(),
             jarvis_wake_engine: "local".into(),
             jarvis_wake_threshold: 0.5,
+            jarvis_voice_vocab: String::new(),
         }
     }
 }
@@ -505,7 +508,8 @@ mod tests {
   "jarvisMicSensitivity": "media",
   "jarvisMicName": "Microfone (3- M8)",
   "jarvisWakeEngine": "cloud",
-  "jarvisWakeThreshold": 0.625
+  "jarvisWakeThreshold": 0.625,
+  "jarvisVoiceVocab": "FC 26, Daniel"
 }"##;
 
     fn custom() -> Value {
@@ -935,6 +939,7 @@ mod tests {
                 "jarvisMicName",
                 "jarvisWakeEngine",
                 "jarvisWakeThreshold",
+                "jarvisVoiceVocab",
             ]
         );
         let _ = std::fs::remove_dir_all(&dir);

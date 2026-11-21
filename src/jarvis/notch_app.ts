@@ -20,7 +20,7 @@ import { BODY_FINISHES, BotEngine, hexToRGB, type BodyFinish } from "../mochi/en
 import type { Outfit } from "../mochi/wardrobe";
 import { CATEGORY_META, renderMemoryGraph } from "../dashboard/memory_graph";
 import { clear, h } from "../views/dom";
-import { Voice } from "./voice";
+import { Voice, asksBack } from "./voice";
 import { createMusicPanel } from "./music_panel";
 import { createAgendaPanel, eventSpan } from "./agenda_panel";
 import { createNotchWidgets } from "./notch_widgets";
@@ -42,6 +42,7 @@ type TabId =
   | "routines"
   | "pc"
   | "mail"
+  | "whatsapp"
   | "files"
   | "notes"
   | "github"
@@ -166,6 +167,7 @@ const ICONS = {
   eye: "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
   send: "M22 2L11 13 M22 2l-7 20-4-9-9-4 20-7z",
   mail: "M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M22 6l-10 7L2 6",
+  whatsapp: "M3 21l1.65-4.94A9 9 0 1 1 8 19.6L3 21z M9 9.5c0 3 2.5 5.5 5.5 5.5l1.2-1.2-1.8-1-1 .8a4 4 0 0 1-2.3-2.3l.8-1-1-1.8L9 9.5z",
   fileSearch: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h5 M14 2l6 6 M14 2v6h6 M16.5 19.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z M18.5 18.5L21 21",
   notes: "M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z",
   github: "M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22",
@@ -369,6 +371,18 @@ export async function startJarvisNotch(root: HTMLElement) {
   let enroll: { index: number; note: string; err: boolean; busy: boolean } | null = null;
   /** A voice command heard while the previous request was still running. */
   let queuedVoice: { text: string; screen: boolean } | null = null;
+
+  /** Jarvis asked a question out loud: listen for the answer, no "Jarvis" needed.
+   *  Quiet for ~6 s and it gives up on its own. */
+  function listenForAnswer() {
+    window.setTimeout(() => {
+      // Something else started meanwhile (a new command, a recording).
+      if (sending || ["listening", "recording", "transcribing"].includes(Voice.state)) return;
+      void Bridge.jarvisLog("voice: ouvindo a resposta (o Jarvis fez uma pergunta)");
+      if (Voice.localWake) void Bridge.wakewordListenNow().catch(() => Voice.toggleRecording());
+      else void Voice.toggleRecording();
+    }, 250); // the end of his own voice must not get into the recording
+  }
   /** Last "Salvar" result under the city field, kept across re-renders. */
   let weatherNote: { text: string; err: boolean } | null = null;
 
@@ -673,7 +687,7 @@ export async function startJarvisNotch(root: HTMLElement) {
     if (!expanded) render();
   }
 
-  async function askJarvis(prompt: string, withScreen = false, stayCompact = false): Promise<string | undefined> {
+  async function askJarvis(prompt: string, withScreen = false, stayCompact = false, viaVoice = false): Promise<string | undefined> {
     const q = prompt.trim();
     if (!q || sending) return;
     let answer: string | undefined;
@@ -698,7 +712,11 @@ export async function startJarvisNotch(root: HTMLElement) {
         pendingActions: pendingItems.length ? pendingItems : undefined,
       });
       Sound.play("finish");
-      void Voice.speak(reply.text);
+      // Asked by voice and he asks back: the answer is heard right after he speaks.
+      const followUp = viaVoice && !pendingItems.length && asksBack(reply.text);
+      void Voice.speak(reply.text).then(() => {
+        if (followUp) listenForAnswer();
+      });
       answer = reply.text;
       void Bridge.jarvisLog(
         `resposta (${reply.providerUsed})${reply.actions.length ? ` · ações: ${reply.actions.join(" | ")}` : " · sem ação"}: "${reply.text.slice(0, 120)}"`,
@@ -734,7 +752,7 @@ export async function startJarvisNotch(root: HTMLElement) {
     if (queuedVoice) {
       const next = queuedVoice;
       queuedVoice = null;
-      window.setTimeout(() => void askJarvis(next.text, next.screen, !expanded), 50);
+      window.setTimeout(() => void askJarvis(next.text, next.screen, !expanded, true), 50);
     }
     return answer;
   }
@@ -2295,6 +2313,32 @@ export async function startJarvisNotch(root: HTMLElement) {
       h("div", { class: "tt-card-title", style: "margin-top:14px", text: "Nível agora" }),
       meter,
       hint,
+      renderVocabField(),
+    );
+  }
+
+  /** Names, games and apps the transcription should spell right. */
+  function renderVocabField(): HTMLElement {
+    const input = h("input", { class: "input", placeholder: "Ex.: FC 26, Daniel Levy, Valorant", style: "flex:1;height:34px" }) as HTMLInputElement;
+    input.value = State.settings.jarvisVoiceVocab ?? "";
+    const status = h("span", { class: "tt-row-meta" });
+    const save = async () => {
+      await saveSettings({ ...State.settings, jarvisVoiceVocab: input.value.trim() });
+      status.textContent = "Salvo";
+    };
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") void save();
+    });
+    return h(
+      "div",
+      {},
+      h("div", { class: "tt-card-title", style: "margin-top:14px", text: "Palavras que o Jarvis deve conhecer" }),
+      h("div", { class: "tt-searchbar" }, input, h("button", { class: "btn", text: "Salvar", onclick: () => void save() }), status),
+      h("div", {
+        class: "tt-hint",
+        style: "margin:6px 0 0",
+        text: "Nomes de pessoas, jogos e apps que ele costuma entender errado, separados por vírgula. Apps comuns (Spotify, WhatsApp, Claude…) já estão incluídos.",
+      }),
     );
   }
 
@@ -3368,6 +3412,7 @@ export async function startJarvisNotch(root: HTMLElement) {
       { id: "agenda", label: "Agenda", icon: ICONS.calendar, badge: todayEvents.length ? String(todayEvents.length) : undefined },
       { id: "music", label: "Spotify", icon: ICONS.music, badge: nowPlaying.playing ? "●" : undefined },
       { id: "mail", label: "E-mail", icon: ICONS.mail },
+      { id: "whatsapp", label: "WhatsApp", icon: ICONS.whatsapp },
       { id: "files", label: "Arquivos", icon: ICONS.fileSearch },
       { id: "notes", label: "Notas", icon: ICONS.notes },
       { id: "github", label: "GitHub", icon: ICONS.github },
@@ -3482,6 +3527,7 @@ export async function startJarvisNotch(root: HTMLElement) {
           toolTabs.renderPcExtras(main);
           break;
         case "mail": toolTabs.renderMail(main); break;
+        case "whatsapp": toolTabs.renderWhatsApp(main); break;
         case "files": toolTabs.renderFiles(main); break;
         case "notes": toolTabs.renderNotes(main); break;
         case "github": toolTabs.renderGithub(main); break;
@@ -3576,7 +3622,7 @@ export async function startJarvisNotch(root: HTMLElement) {
       void Bridge.jarvisLog(`voice: na fila (Jarvis ocupado): "${text.slice(0, 80)}"`);
       return;
     }
-    void askJarvis(text, screen, !expanded);
+    void askJarvis(text, screen, !expanded, true);
   };
 
   // Media of any app (YouTube, VLC…): the pill shows it when Spotify is quiet.

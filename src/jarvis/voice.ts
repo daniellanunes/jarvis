@@ -101,7 +101,7 @@ export class JarvisVoice {
       }
       const raw = text.trim();
       const m = matchWakeWord(raw, State.settings.jarvisWakeWord);
-      const command = (m ? raw.slice(m.endIndex) : raw).replace(/^[,.\s:!?-]+/, "").trim();
+      const command = commandAfterWake(raw, m);
       if (!command || isNoise(command)) {
         vlog(`nada entendido depois de "Jarvis"${raw ? `: "${raw.slice(0, 80)}"` : ""}`);
         return;
@@ -298,9 +298,10 @@ export class JarvisVoice {
             cmdSilence = 0;
           } else if (cmdHeard) {
             if (cmdSilence === 0) cmdSilence = t;
-            else if (t - cmdSilence >= 900) finishCommand("silêncio");
+            // A breath mid-sentence (up to ~1.8 s) does not end the command.
+            else if (t - cmdSilence >= 1800) finishCommand("silêncio");
           }
-          if (cmdSamples > 0 && t - cmdStart > (cmdHeard ? 12000 : 8000)) finishCommand(cmdHeard ? "máximo" : "tempo");
+          if (cmdSamples > 0 && t - cmdStart > (cmdHeard ? 20000 : 8000)) finishCommand(cmdHeard ? "máximo" : "tempo");
           return;
         }
         tail.push(new Float32Array(input));
@@ -448,7 +449,7 @@ export class JarvisVoice {
       vlog(`sem "Jarvis": "${raw.slice(0, 80)}"`);
       return false;
     }
-    const command = (match ? raw.slice(match.endIndex) : raw).replace(/^[,.\s:!?-]+/, "").trim();
+    const command = commandAfterWake(raw, match);
     if (command.length >= 2) {
       vlog(`comando: "${command.slice(0, 120)}"`);
       this.endListening();
@@ -466,8 +467,8 @@ export class JarvisVoice {
 
   private beginListening() {
     vlog(`ouvindo o comando (mídia tocando: ${this.mediaPlaying ? "sim" : "não"})`);
-    // Safety net only: the audio thread ends the recording (silence / 8–12 s).
-    this.armListening(14000);
+    // Safety net only: the audio thread ends the recording (silence / 8–20 s).
+    this.armListening(22000);
     this.listenArmed = true;
     this.setState("listening", "Fala…");
   }
@@ -483,7 +484,7 @@ export class JarvisVoice {
     const raw = (await this.transcribeWav(wav)) ?? "";
     this.setState("idle");
     const m = matchWakeWord(raw, State.settings.jarvisWakeWord);
-    const command = (m ? raw.slice(m.endIndex) : raw).replace(/^[,.\s:!?-]+/, "").trim();
+    const command = commandAfterWake(raw, m);
     if (!command || isNoise(command)) {
       vlog(`nada entendido depois de "Jarvis"${raw ? `: "${raw.slice(0, 80)}"` : ""}`);
       return;
@@ -668,10 +669,12 @@ export class JarvisVoice {
     }
   }
 
-  /** Speaks a reply using natural pt-BR Neural TTS (Edge TTS), with Web Speech fallback. */
+  /** Speaks a reply using natural pt-BR Neural TTS (Edge TTS), with Web Speech
+   *  fallback. Resolves when it has finished speaking (or was cut off). */
   async speak(text: string) {
     if (!(State.settings.jarvisTtsEnabled ?? true)) return;
-    const clean = text.trim();
+    // Said, not read: no "asterisco", no markdown, no emoji names.
+    const clean = speakable(text);
     if (!clean) return;
 
     if (this.currentAudio) {
@@ -687,7 +690,14 @@ export class JarvisVoice {
       if (b64) {
         const audio = new Audio(`data:audio/mp3;base64,${b64}`);
         this.currentAudio = audio;
+        const done = new Promise<void>((resolve) => {
+          audio.addEventListener("ended", () => resolve(), { once: true });
+          // Cut off by a newer reply, or the clip failed: not speaking anymore.
+          audio.addEventListener("pause", () => resolve(), { once: true });
+          audio.addEventListener("error", () => resolve(), { once: true });
+        });
         await audio.play();
+        await done;
         return;
       }
     } catch {
@@ -705,7 +715,12 @@ export class JarvisVoice {
         voices.find((v) => v.lang.toLowerCase().startsWith("pt-br")) ??
         voices.find((v) => v.lang.toLowerCase().startsWith("pt"));
       if (ptVoice) utter.voice = ptVoice;
+      const done = new Promise<void>((resolve) => {
+        utter.onend = () => resolve();
+        utter.onerror = () => resolve();
+      });
       window.speechSynthesis.speak(utter);
+      await done;
     } catch {
       // ignore TTS errors
     }
@@ -716,6 +731,69 @@ export class JarvisVoice {
 interface Utterance {
   head: Blob;
   full: Blob;
+}
+
+/** The reply as it should be heard: the chat shows markdown, the voice must
+ *  not read it ("asterisco", "cerquilha", a whole URL, emoji names). */
+export function speakable(text: string): string {
+  return (
+    text
+      // Code blocks are for the screen.
+      .replace(/```[\s\S]*?```/g, "\n")
+      // [texto](url) → texto; bare links → "o link".
+      .replace(/\[([^\]]+)\]\((?:[^)]+)\)/g, "$1")
+      .replace(/\bhttps?:\/\/\S+/gi, "o link")
+      // Windows paths: "D:\Projetos\jarvis" → "Projetos jarvis".
+      .replace(/\b[A-Za-z]:\\/g, "")
+      .replace(/\\/g, " ")
+      // Markdown marks: headings, quotes, bullets, emphasis, inline code.
+      .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+      .replace(/^\s*>\s?/gm, "")
+      .replace(/^\s*[-*+•]\s+/gm, "")
+      .replace(/(\*\*|__|~~|`)/g, "")
+      .replace(/(^|[\s(])[*_]([^*_\n]+)[*_](?=[\s).,!?:;]|$)/g, "$1$2")
+      .replace(/[*#|]/g, " ")
+      // Emoji and pictographs.
+      .replace(/(\p{Extended_Pictographic}|\uFE0F|\u200D)/gu, "")
+      // A line break is a pause.
+      .replace(/([^.!?:;,\s])\s*\n+\s*/g, "$1. ")
+      .replace(/\s*\n+\s*/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim()
+  );
+}
+
+/** Does the reply end by asking the user something? Then the answer can come
+ *  without saying "Jarvis" again. A question followed by a short invitation
+ *  ("…qual projeto? É só mandar.") counts too. */
+export function asksBack(text: string): boolean {
+  const tidy = (s: string) =>
+    s
+      .trim()
+      // Trailing emoji, quotes, markdown and brackets do not count.
+      .replace(/[\s"'”’)\]*_~`]+$/u, "")
+      .replace(/(\p{Extended_Pictographic}|\uFE0F|\u200D|\s)+$/u, "")
+      .trim();
+  const t = tidy(text);
+  if (t.endsWith("?")) return true;
+  const q = t.lastIndexOf("?");
+  if (q < 0) return false;
+  const tail = t.slice(q + 1).trim();
+  return tail.length <= 40 && /^(é só|e so|me (diga|diz|fala|avisa|conta)|pode (falar|mandar|dizer)|fala|manda|diz|estou ouvindo|tô ouvindo|to ouvindo)(?=[\s.!,]|$)/i.test(tail);
+}
+
+/** The command in a transcription: what follows "Jarvis" (and a second
+ *  "Jarvis" right after it, said again out of habit). */
+export function commandAfterWake(raw: string, match: { endIndex: number } | null): string {
+  const clean = (s: string) => s.replace(/^[,.\s:!?-]+/, "").trim();
+  let rest = clean(match ? raw.slice(match.endIndex) : raw);
+  for (let i = 0; i < 2; i++) {
+    const again = matchWakeWord(rest, State.settings.jarvisWakeWord);
+    // Only when the name opens what is left ("Jarvis. Me faça…").
+    if (!again || rest.slice(0, again.endIndex).trim().split(/\s+/).length > 2) break;
+    rest = clean(rest.slice(again.endIndex));
+  }
+  return rest;
 }
 
 /** What Whisper "hears" in silence, music or noise — never a command. */

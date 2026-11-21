@@ -53,6 +53,7 @@
   .chip { display: inline-flex; align-items: center; gap: 12px; padding: 18px 30px; border-radius: 999px; background: #fafafa; color: #0b0b0d; font-size: 28px; font-weight: 700; }
   .url { display: inline-block; font-size: 30px; font-weight: 600; padding: 18px 28px; border-radius: 18px; border: 2px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); }
   .typed { display: inline-flex; align-items: center; gap: 16px; padding: 20px 30px; border-radius: 999px; background: rgba(255,255,255,.06); border: 2px solid rgba(255,255,255,.1); font-size: 32px; font-weight: 600; }
+  #bars9 i { display: block; width: 6px; height: 10px; border-radius: 3px; background: #4ade80; }
   .cursor { display: inline-block; width: 3px; height: 36px; background: #fafafa; margin-left: 2px; }
 </style>
 </head>
@@ -122,6 +123,28 @@
     </div>
   </section>
 
+  <!-- 4b. Voice + updates (new in 0.1.x) -->
+  <section class="scene" id="s9">
+    <div class="pad" style="top:110px">
+      <div class="eyebrow">Novo</div>
+      <h2 style="margin-top:20px;font-size:54px">Diga “Jarvis”.<br><span class="muted">Ele reconhece a sua voz.</span></h2>
+    </div>
+    <div class="pad" style="top:400px">
+      <div class="typed" id="wake9" style="gap:22px">
+        <span style="display:flex;gap:7px;align-items:center;height:44px" id="bars9">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </span>
+        <span>“Jarvis…”</span>
+        <span class="tag g mono" id="ok9" style="margin-left:6px">✓ confirmado</span>
+      </div>
+    </div>
+    <div class="pad" style="top:540px" id="rows9">
+      <div class="row"><div class="ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></svg></div><div><b>Cadastro da sua voz</b><span>Diga “Jarvis” 6 vezes: o chamado é reconhecido no próprio PC, na hora.</span></div></div>
+      <div class="row"><div class="ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2 4 6v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V6z"/><path d="m9 12 2 2 4-4"/></svg></div><div><b>Confere antes de agir</b><span>Conversa, TV ou música parecida não abre nada.</span></div></div>
+      <div class="row" style="border-bottom:0"><div class="ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></div><div><b>Atualiza sozinho</b><span>Versão nova avisa no notch: um clique, assinatura conferida.</span></div></div>
+    </div>
+  </section>
+
   <!-- 5. Architecture -->
   <section class="scene" id="s5">
     <div class="pad" style="top:96px">
@@ -134,11 +157,11 @@
     <div class="line" id="l1" style="left:539px;top:470px;height:46px"></div>
     <div class="pad" style="top:516px" id="a2">
       <div class="box" style="border-color:rgba(34,197,94,.35)"><h4>Núcleo em Rust · Tauri 2</h4>
-        <div class="tags"><span class="tag g">Function calling</span><span class="tag g">Comandos instantâneos</span><span class="tag g">Fallback entre IAs</span><span class="tag g">OAuth PKCE</span></div>
+        <div class="tags"><span class="tag g">Function calling</span><span class="tag g">Comandos instantâneos</span><span class="tag g">Fallback entre IAs</span><span class="tag g">Voz local</span><span class="tag g">Updates assinados</span><span class="tag g">OAuth PKCE</span></div>
       </div>
     </div>
-    <div class="line" id="l2" style="left:300px;top:690px;height:46px"></div>
-    <div class="line" id="l3" style="left:780px;top:690px;height:46px"></div>
+    <div class="line" id="l2" style="left:300px;top:707px;height:29px"></div>
+    <div class="line" id="l3" style="left:780px;top:707px;height:29px"></div>
     <div class="pad" style="top:736px;display:grid;grid-template-columns:1fr 1fr;gap:22px" id="a3">
       <div class="box"><h4>Windows nativo</h4>
         <div class="tags"><span class="tag">ETW (FPS)</span><span class="tag">WinRT SMTC</span><span class="tag">Core Audio</span><span class="tag">PDH</span><span class="tag">Task Scheduler</span><span class="tag">Credential Manager</span><span class="tag">CDP</span></div>
@@ -156,7 +179,7 @@
       <h2 style="margin-top:20px;font-size:54px">Feito para ser confiável<br><span class="muted">no uso de todo dia.</span></h2>
     </div>
     <div class="pad cards" style="top:410px" id="stats6">
-      <div class="stat"><div class="n" data-to="636">0</div><div class="d">testes automatizados<br>(Rust + TypeScript)</div></div>
+      <div class="stat"><div class="n" data-to="649">0</div><div class="d">testes automatizados<br>(Rust + TypeScript)</div></div>
       <div class="stat"><div class="n" data-to="5">0</div><div class="d">provedores de IA, com troca<br>automática se um cair</div></div>
       <div class="stat"><div class="n" data-to="0">0</div><div class="d">servidores próprios —<br>tudo roda no seu PC</div></div>
       <div class="stat"><div class="n" data-to="1">0</div><div class="d">pedido de admin — na<br>instalação, nunca mais</div></div>
@@ -182,9 +205,11 @@
     <div class="pad" style="top:250px">
       <svg width="150" height="150"><use href="#mark"/></svg>
       <h1 style="margin-top:44px;font-size:92px">Jarvis</h1>
-      <p class="lead" style="margin-top:22px;font-size:36px;color:#d4d4d8">Gratuito e open source (MIT).<br>Feedback e contribuições são bem-vindos.</p>
-      <div style="margin-top:48px" id="cta8"><span class="url mono">github.com/daniellanunes/jarvis</span></div>
-      <div style="margin-top:26px"><span class="chip">Link nos comentários ↓</span></div>
+      <p class="lead" style="margin-top:22px;font-size:36px;color:#d4d4d8">Do microfone ao instalador:<br>um projeto para aprender de ponta a ponta.</p>
+      <div class="tags" style="margin-top:44px;gap:14px" id="cta8">
+        <span class="tag g" style="font-size:24px;padding:12px 18px">Rust</span><span class="tag g" style="font-size:24px;padding:12px 18px">Tauri 2</span><span class="tag g" style="font-size:24px;padding:12px 18px">TypeScript</span>
+        <span class="tag" style="font-size:24px;padding:12px 18px">APIs do Windows</span><span class="tag" style="font-size:24px;padding:12px 18px">Function calling</span><span class="tag" style="font-size:24px;padding:12px 18px">Wake word local</span>
+      </div>
     </div>
   </section>
 
@@ -199,7 +224,9 @@
   const out = (x) => 1 - Math.pow(1 - x, 3);
   const inOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
   const $ = (id) => document.getElementById(id);
-  const SCENES = [["s1", 0, 4], ["s2", 4, 8.6], ["s3", 8.6, 15], ["s4", 15, 20.6], ["s5", 20.6, 27.4], ["s6", 27.4, 32.6], ["s7", 32.6, 38.2], ["s8", 38.2, 50]];
+  const SCENES = [["s1", 0, 4], ["s2", 4, 8.6], ["s3", 8.6, 15], ["s4", 15, 20.6], ["s9", 20.6, 27], ["s5", 27, 33.8], ["s6", 33.8, 39], ["s7", 39, 44.6], ["s8", 44.6, 56.4]];
+  /** Scenes after the voice one start this much later than they used to. */
+  const SHIFT = 6.4;
   const PHRASE = "“Jarvis, o que eu tenho amanhã?”";
 
   function stagger(selector, t, start, step, dist = 30, axis = "Y") {
@@ -217,7 +244,7 @@
       el.style.transform = `translateY(${(1 - out(k(t, a, a + 0.7))) * 26}px)`;
     }
     // The brand bar stays, except on the title and the ending.
-    $("brandbar").style.opacity = Math.min(k(t, 4.2, 4.8), 1 - k(t, 37.8, 38.3));
+    $("brandbar").style.opacity = Math.min(k(t, 4.2, 4.8), 1 - k(t, 37.8 + SHIFT, 38.3 + SHIFT));
 
     // 1
     const p1 = out(k(t, 0.1, 0.9));
@@ -242,6 +269,18 @@
     $("panel3").style.transformOrigin = "40% 30%";
     // 4
     stagger("#cards4 .card", t, 15.5, 0.18, 34);
+    // 4b — the voice: bars move while "Jarvis" is said, then it is confirmed
+    $("wake9").style.opacity = out(k(t, 21.0, 21.5));
+    const speak = k(t, 21.4, 22.8) * (1 - k(t, 22.8, 23.1));
+    document.querySelectorAll("#bars9 i").forEach((el, i) => {
+      const h = 10 + speak * 30 * Math.abs(Math.sin(t * 9 + i * 0.8));
+      el.style.height = `${h}px`;
+    });
+    $("ok9").style.opacity = out(k(t, 23.0, 23.4));
+    $("ok9").style.transform = `scale(${0.85 + 0.15 * out(k(t, 23.0, 23.4))})`;
+    stagger("#rows9 .row", t, 23.3, 0.35, 40, "X");
+    // Everything below was timed before the voice scene: shift it.
+    t -= SHIFT;
     // 5
     $("a1").style.opacity = out(k(t, 21.0, 21.5));
     $("l1").style.transform = `scaleY(${out(k(t, 21.4, 21.9))})`;
@@ -263,7 +302,7 @@
     // 7
     stagger("#rows7 .row", t, 33.0, 0.3, 40, "X");
     // 8
-    $("cta8").style.transform = `scale(${1 + 0.02 * Math.sin(Math.max(0, t - 39.5) * 4)})`;
+    stagger("#cta8 .tag", t, 38.8, 0.12, 20);
   }
 
   window.setT = setT;

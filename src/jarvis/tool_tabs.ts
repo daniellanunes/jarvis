@@ -11,6 +11,9 @@ import {
   type MailFull,
   type MailItem,
   type NoteHit,
+  type WaChat,
+  type WaState,
+  type WaThread,
 } from "../core/bridge";
 import { clear, h } from "../views/dom";
 
@@ -535,7 +538,214 @@ export function createToolTabs(ctx: ToolTabsCtx) {
     container.append(h("div", { class: "tt-pc-grid" }, out, net));
   }
 
-  return { renderMail, renderFiles, renderNotes, renderGithub, renderPcExtras, refreshAudio: loadAudio };
+  // ── WhatsApp (WhatsApp Web hidden inside Jarvis, whatsapp.rs) ─────────────
+  // Nothing is read until this tab is opened (the user asked for it).
+  const wa = {
+    state: null as WaState | null,
+    chats: null as WaChat[] | null,
+    thread: null as WaThread | null,
+    opening: "",
+    loading: false,
+    error: "",
+    draft: "",
+    sending: false,
+    timer: 0 as number,
+    busy: false,
+  };
+
+  /** While the tab is on screen: QR / loading checks, then fresh chats. */
+  function waTick() {
+    if (!ctx.isOpen("whatsapp")) {
+      window.clearInterval(wa.timer);
+      wa.timer = 0;
+      return;
+    }
+    if (wa.busy || wa.sending) return;
+    if (wa.state?.state !== "ready") void waLoadState();
+    else if (wa.thread) void waOpen(wa.thread.title, true);
+    else void waLoadChats(true);
+  }
+
+  async function waLoadState() {
+    wa.busy = true;
+    try {
+      wa.state = await Bridge.whatsappState();
+      wa.error = "";
+      if (wa.state.state === "ready" && wa.chats == null) {
+        wa.busy = false;
+        return void waLoadChats();
+      }
+    } catch (e) {
+      wa.error = String(e).replace(/^Error:\s*/, "");
+    }
+    wa.busy = false;
+    if (ctx.isOpen("whatsapp")) ctx.rerender();
+  }
+
+  async function waLoadChats(quiet = false) {
+    wa.busy = true;
+    if (!quiet) {
+      wa.loading = true;
+      ctx.rerender();
+    }
+    try {
+      wa.chats = await Bridge.whatsappChats();
+      wa.error = "";
+    } catch (e) {
+      wa.error = String(e).replace(/^Error:\s*/, "");
+    }
+    wa.loading = false;
+    wa.busy = false;
+    if (ctx.isOpen("whatsapp") && !wa.thread) ctx.rerender();
+  }
+
+  async function waOpen(title: string, quiet = false) {
+    wa.busy = true;
+    if (!quiet) {
+      wa.opening = title;
+      ctx.rerender();
+    }
+    try {
+      const t = await Bridge.whatsappThread(title);
+      // Still on this chat (the user may have gone back meanwhile).
+      if (quiet && wa.thread?.title !== title) return;
+      wa.thread = t;
+      wa.error = "";
+    } catch (e) {
+      wa.error = String(e).replace(/^Error:\s*/, "");
+    } finally {
+      wa.opening = "";
+      wa.busy = false;
+    }
+    if (ctx.isOpen("whatsapp")) ctx.rerender();
+  }
+
+  async function waSend() {
+    const t = wa.thread;
+    const text = wa.draft.trim();
+    if (!t || !text || wa.sending) return;
+    wa.sending = true;
+    ctx.rerender();
+    try {
+      await Bridge.whatsappSend(t.title, text);
+      wa.draft = "";
+      wa.sending = false;
+      await waOpen(t.title, true);
+    } catch (e) {
+      wa.error = String(e).replace(/^Error:\s*/, "");
+    }
+    wa.sending = false;
+    if (ctx.isOpen("whatsapp")) ctx.rerender();
+  }
+
+  function renderWhatsApp(main: HTMLElement) {
+    if (!wa.timer) wa.timer = window.setInterval(waTick, 4000);
+    if (wa.state == null && !wa.busy) void waLoadState();
+
+    const st = wa.state?.state;
+    if (wa.error && st !== "ready") main.append(note(wa.error, true));
+    if (st == null || st === "loading") {
+      main.append(ctx.sectionHead("WhatsApp"), note("Carregando o WhatsApp…"));
+      return;
+    }
+    if (st === "qr") {
+      main.append(
+        ctx.sectionHead("WhatsApp"),
+        h(
+          "div",
+          { class: "wa-link" },
+          wa.state?.qr ? h("img", { class: "wa-qr", src: wa.state.qr, alt: "QR code do WhatsApp" }) : h("div", { class: "wa-qr wa-qr-empty", text: "Gerando QR code…" }),
+          h(
+            "div",
+            { class: "wa-link-steps" },
+            h("div", { class: "tt-card-title", text: "Conecte seu WhatsApp" }),
+            h("ol", {}, h("li", { text: "Abra o WhatsApp no celular." }), h("li", { text: "Toque em ⋮ ou Configurações → Aparelhos conectados." }), h("li", { text: "Toque em Conectar um aparelho e aponte para este código." })),
+            h("div", { class: "tt-hint", text: "A sessão fica só neste PC, dentro do Jarvis. Ele só lê ou envia quando você pede." }),
+          ),
+        ),
+      );
+      return;
+    }
+
+    // An open chat.
+    if (wa.thread) {
+      const t = wa.thread;
+      const input = h("input", { class: "input tt-search", placeholder: `Mensagem para ${t.title}`, value: wa.draft }) as HTMLInputElement;
+      input.addEventListener("input", () => (wa.draft = input.value));
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") void waSend();
+      });
+      const list = h(
+        "div",
+        { class: "wa-thread" },
+        ...(t.messages.length
+          ? t.messages.map((m) =>
+              h(
+                "div",
+                { class: `wa-msg ${m.mine ? "mine" : ""}` },
+                !m.mine && m.from && m.from !== t.title ? h("div", { class: "wa-from", text: m.from }) : "",
+                h("div", { class: "wa-text", text: m.text }),
+                h("div", { class: "wa-when", text: (m.when.split(",")[0] || "").trim() }),
+              ),
+            )
+          : [note("Sem mensagens de texto recentes.")]),
+      );
+      main.append(
+        h(
+          "div",
+          { class: "tt-mail-head" },
+          h("button", { class: "link-btn", text: "‹ Conversas", onclick: () => ((wa.thread = null), (wa.draft = ""), void waLoadChats(true), ctx.rerender()) }),
+          h("div", { class: "tt-mail-subject", text: t.title }),
+        ),
+        list,
+        wa.error ? note(wa.error, true) : "",
+        h(
+          "div",
+          { class: "tt-searchbar", style: "margin-top:10px" },
+          input,
+          h("button", { class: "btn", text: wa.sending ? "Enviando…" : "Enviar", onclick: () => void waSend() }),
+        ),
+      );
+      queueMicrotask(() => {
+        list.scrollTop = list.scrollHeight;
+        input.focus();
+      });
+      return;
+    }
+
+    // The chat list.
+    main.append(ctx.sectionHead("WhatsApp", { label: "Atualizar", onclick: () => void waLoadChats() }));
+    if (wa.error) main.append(note(wa.error, true));
+    if (wa.loading && wa.chats == null) return void main.append(note("Carregando conversas…"));
+    const chats = wa.chats ?? [];
+    if (!chats.length) return void main.append(note("Nenhuma conversa carregada ainda."));
+    main.append(
+      h(
+        "div",
+        { class: "tt-list" },
+        ...chats.map((c) =>
+          h(
+            "button",
+            { class: `tt-row tt-mail ${c.unread ? "unread" : ""}`, onclick: () => void waOpen(c.title) },
+            h(
+              "div",
+              { class: "tt-row-top" },
+              h("span", { class: "tt-row-title", text: c.title }),
+              h(
+                "span",
+                { class: "tt-row-meta" },
+                wa.opening === c.title ? "abrindo…" : c.time,
+                c.unread ? h("span", { class: "wa-badge", text: String(c.unread) }) : "",
+              ),
+            ),
+            c.last ? h("div", { class: "tt-row-snippet", text: c.last }) : "",
+          ),
+        ),
+      ),
+    );
+  }
+
+  return { renderMail, renderWhatsApp, renderFiles, renderNotes, renderGithub, renderPcExtras, refreshAudio: loadAudio };
 }
 
 export function emptyInto(el: HTMLElement) {

@@ -54,6 +54,7 @@ mod spotify;
 mod spotify_api;
 mod tray;
 mod wakeword;
+mod whatsapp;
 mod weather;
 #[cfg(windows)]
 mod webview_drop;
@@ -903,6 +904,10 @@ pub fn run() {
             routines::jarvis_run_routine,
             jarvis_tools::jarvis_briefing,
             jarvis_tools::jarvis_github_overview,
+            whatsapp::whatsapp_state,
+            whatsapp::whatsapp_chats,
+            whatsapp::whatsapp_thread,
+            whatsapp::whatsapp_send,
             jarvis_brain::jarvis_brain_status,
             jarvis_brain::jarvis_ask,
             jarvis_brain::jarvis_execute_confirmed_action,
@@ -967,6 +972,7 @@ pub fn run() {
             routines::spawn(handle.clone());
             alerts::spawn(handle.clone());
             wakeword::spawn(handle.clone());
+            whatsapp::init(&handle);
             app_update::spawn(handle.clone());
             pc_monitor::configure(loaded_pc, loaded_fps, loaded_net);
 

@@ -20,7 +20,53 @@ use crate::Shared;
 const GROQ_CHAT_URL: &str = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_WHISPER_URL: &str = "https://api.groq.com/openai/v1/audio/transcriptions";
 const GROQ_MODEL: &str = "llama-3.3-70b-versatile";
-const GROQ_WHISPER_MODEL: &str = "whisper-large-v3-turbo";
+/// The full large-v3, not turbo: more accurate in Portuguese (turbo slipped
+/// into Spanish and missed names), and still well under a second on Groq.
+const GROQ_WHISPER_MODEL: &str = "whisper-large-v3";
+
+/// Words the transcription often gets wrong: apps, services, the assistant's
+/// name. Whisper takes them as context (its `prompt`), Gemini as a hint.
+const STT_VOCAB: &str = "Jarvis, Spotify, YouTube, WhatsApp, OpenBot, Obsidian, Claude, Gemini, ChatGPT, GitHub, Google Agenda, Gmail, Steam, Discord, Chrome, FC 26";
+
+/// The vocabulary for the transcription: the built-in words plus the user's own
+/// (Ajustes → Microfone → Palavras que o Jarvis deve conhecer).
+pub fn stt_vocabulary() -> String {
+    let own = crate::settings::load().jarvis_voice_vocab;
+    let mut words: Vec<String> = Vec::new();
+    for w in own.split([',', ';', '\n']).chain(STT_VOCAB.split(',')) {
+        let w = w.trim();
+        if !w.is_empty() && !words.iter().any(|x| x.eq_ignore_ascii_case(w)) {
+            words.push(w.to_string());
+        }
+    }
+    // Whisper reads at most ~224 tokens of prompt; keep it well below.
+    let mut out = String::new();
+    for w in words {
+        if out.len() + w.len() > 600 {
+            break;
+        }
+        if !out.is_empty() {
+            out.push_str(", ");
+        }
+        out.push_str(&w);
+    }
+    out
+}
+
+/// On silence Whisper sometimes "transcribes" its own prompt: that is nothing.
+fn drop_prompt_echo(text: &str) -> String {
+    let t = text.trim();
+    let lower = t.to_lowercase();
+    if lower.contains("comandos de voz para o assistente") || lower.contains(&STT_VOCAB[..40].to_lowercase()) {
+        return String::new();
+    }
+    t.to_string()
+}
+
+/// Whisper's prompt: a sentence in the style of the commands, then the words.
+fn whisper_prompt() -> String {
+    format!("Comandos de voz para o assistente Jarvis, em português do Brasil. {}.", stt_vocabulary())
+}
 const GEMINI_MODEL: &str = "gemini-3.8-flash";
 const GEMINI_MODELS: &[&str] = &[GEMINI_MODEL, "gemini-3.5-flash-lite"];
 const OPENAI_CHAT_URL: &str = "https://api.openai.com/v1/chat/completions";
@@ -1015,6 +1061,8 @@ async fn groq_transcribe(key: &str, bytes: Vec<u8>, mime: &str) -> Result<String
         .part("file", part)
         .text("model", GROQ_WHISPER_MODEL)
         .text("language", "pt")
+        .text("prompt", whisper_prompt())
+        .text("temperature", "0")
         .text("response_format", "json");
     let res = http_client()?
         .post(GROQ_WHISPER_URL)
@@ -1026,7 +1074,7 @@ async fn groq_transcribe(key: &str, bytes: Vec<u8>, mime: &str) -> Result<String
     let status = res.status();
     let body: serde_json::Value = res.json().await.map_err(|e| format!("Resposta inválida do Whisper: {e}"))?;
     if status.is_success() {
-        return Ok(body["text"].as_str().unwrap_or("").trim().to_string());
+        return Ok(drop_prompt_echo(body["text"].as_str().unwrap_or("")));
     }
     Err(format!("Groq Whisper ({status}): {}", body["error"]["message"].as_str().unwrap_or("falha na transcrição")))
 }
@@ -1414,7 +1462,7 @@ async fn call_gemini_transcribe(
             "role": "user",
             "parts": [
                 {
-                    "text": "Transcreva fielmente a fala deste áudio em português do Brasil. Retorne apenas a transcrição exata, sem aspas nem comentários. Se houver apenas silêncio ou ruído sem fala inteligível, retorne vazio."
+                    "text": format!("Transcreva fielmente a fala deste áudio em português do Brasil. Retorne apenas a transcrição exata, sem aspas nem comentários. Se houver apenas silêncio ou ruído sem fala inteligível, retorne vazio. Palavras que podem aparecer (escreva-as assim): {}.", stt_vocabulary())
                 },
                 {
                     "inline_data": {

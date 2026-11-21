@@ -18,8 +18,8 @@ const OUT = join(HERE, "out");
 const VIDEOS = {
   instagram: { page: "instagram.html", w: 1080, h: 1920, duration: 28.5, out: "jarvis-reels.mp4",
     picks: [0.9, 2.4, 5.2, 8.4, 10.4, 13.2, 16.2, 18.6, 21.4, 24.2, 27.4] },
-  linkedin: { page: "linkedin.html", w: 1080, h: 1350, duration: 44, out: "jarvis-linkedin.mp4",
-    picks: [2.2, 6.0, 9.4, 12.6, 16.5, 21.0, 24.5, 28.6, 33.2, 37.6, 42.5] },
+  linkedin: { page: "linkedin.html", w: 1080, h: 1350, duration: 50.4, out: "jarvis-linkedin.mp4",
+    picks: [2.2, 6.0, 9.4, 12.6, 16.5, 22.2, 25.5, 31.0, 35.4, 41.6, 48.9] },
 };
 const which = process.argv.slice(2).find((a) => !a.startsWith("--")) ?? "instagram";
 const VIDEO = VIDEOS[which];
