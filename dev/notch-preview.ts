@@ -99,6 +99,24 @@ const answers: Record<string, (args: any) => unknown> = {
     calEvents = calEvents.filter((e) => e.key !== key);
     return null;
   },
+  // WhatsApp (fictional chats).
+  whatsapp_state: () => ({ state: "ready", qr: null }),
+  whatsapp_chats: () => [
+    { title: "Ana Souza", last: "Combinado, chego às 8!", time: "14:02", unread: 2 },
+    { title: "Família", last: "Mãe: Domingo tem almoço aqui", time: "13:40", unread: 5 },
+    { title: "Carlos (trabalho)", last: "Você: Mandei o relatório", time: "11:15", unread: 0 },
+    { title: "Mensagens para mim", last: "Você: comprar pão", time: "ontem", unread: 0 },
+  ],
+  whatsapp_thread: ({ chat }) => ({
+    title: chat,
+    messages: [
+      { when: "13:50", from: chat, text: "Oi! Vamos jantar hoje?", mine: false },
+      { when: "13:58", from: "Você", text: "Bora! Que horas?", mine: true },
+      { when: "14:01", from: chat, text: "Às 8 no lugar de sempre?", mine: false },
+      { when: "14:02", from: chat, text: "Combinado, chego às 8!", mine: false },
+    ],
+  }),
+  whatsapp_send: () => "Mensagem enviada.",
   gmail_list: () => [
     { id: "m1", threadId: "t1", from: "Ana Souza <ana@exemplo.com>", subject: "Proposta do projeto — versão final", date: new Date().toUTCString(), snippet: "Oi! Segue a versão final da proposta com os ajustes que conversamos…", unread: true },
     { id: "m2", threadId: "t2", from: "GitHub <noreply@github.com>", subject: "[jarvis] CI falhou no main", date: new Date(Date.now() - 864e5).toUTCString(), snippet: "Run failed: build (windows-latest)", unread: false },
@@ -226,6 +244,14 @@ if (sub) {
     const b = [...document.querySelectorAll<HTMLElement>("button")].find((x) => x.textContent?.trim() === sub);
     b?.click();
   }, 700);
+}
+const wachat = params.get("wachat");
+if (wachat) {
+  // Opens a WhatsApp chat by its name (the WhatsApp tab must be open).
+  setTimeout(() => {
+    const row = [...document.querySelectorAll<HTMLElement>(".tt-row")].find((r) => r.textContent?.includes(wachat));
+    row?.click();
+  }, 1200);
 }
 const fq = params.get("fq");
 if (fq) {

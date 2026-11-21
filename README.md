@@ -75,6 +75,11 @@ Clique no notch para abrir o painel.
 | <img src="docs/images/panel-spotify.png" alt="Spotify"> | <img src="docs/images/panel-mail.png" alt="E-mail"> |
 | Player com capa, playlists, curtidas, recentes e busca — com cara de Spotify. | Gmail **só quando você abre ou pede**: caixa de entrada, não lidos, busca, resumo e rascunho de resposta. |
 
+| WhatsApp | Conversa no WhatsApp |
+|---|---|
+| <img src="docs/images/panel-whatsapp.png" alt="WhatsApp"> | <img src="docs/images/panel-whatsapp-chat.png" alt="Conversa no WhatsApp"> |
+| Suas conversas **dentro do Jarvis**, com as não lidas em destaque — sem abrir navegador. | Leia e responda ali mesmo. Por voz, ele confirma a pessoa e o texto antes de enviar. |
+
 | Arquivos | Notas (Obsidian) |
 |---|---|
 | <img src="docs/images/panel-files.png" alt="Arquivos"> | <img src="docs/images/panel-notes.png" alt="Notas"> |
@@ -289,6 +294,8 @@ Ajustes → **Notch**:
 
 O WhatsApp fica **dentro do Jarvis**, numa aba do notch — sem navegador por fora.
 
+<img src="docs/images/panel-whatsapp-chat.png" width="720" alt="Conversa do WhatsApp no notch">
+
 1. Abra o notch → aba **WhatsApp**. Aparece um QR code.
 2. No celular: WhatsApp → **⋮ / Configurações → Aparelhos conectados → Conectar um aparelho** → aponte para o código.
 3. Pronto: a aba mostra suas conversas (não lidas em destaque). Clique numa para ler e responder ali mesmo.
@@ -377,6 +384,11 @@ Exemplo — **Modo jogo**: gatilho `app:valorant`, passos `close:chrome, saida:f
 | Acorda sozinho | Sensibilidade do chamado → **Mais rigoroso**, ou **Refazer cadastro**. |
 | “Limite de transcrição atingido” | As chaves gratuitas (Groq/Gemini) chegaram ao limite por minuto/dia. Com o cadastro de voz isso quase não acontece; cadastre mais chaves em Ajustes → IA & Voz. |
 | FPS não aparece | Ligue *Medidor de FPS*, abra o Jarvis como administrador e deixe o jogo em primeiro plano. Em tela cheia exclusiva, ele aparece no **outro monitor**. |
+| Entende palavras erradas (nomes, jogos) | Ajustes → IA & Voz → **Microfone** → *Palavras que o Jarvis deve conhecer*: escreva-as separadas por vírgula. |
+| Corta o pedido quando você respira | Ele espera ~1,8 s de silêncio. Fale sem pausas longas no meio; para pedidos grandes, faça em duas partes. |
+| WhatsApp: o QR code não aparece | Espere alguns segundos com a aba aberta (ele carrega o WhatsApp Web escondido). Se demorar, feche e abra o Jarvis. |
+| WhatsApp pede o QR code de novo | Acontece ao reinstalar ou se o aparelho foi removido no celular. Escaneie de novo e apague os aparelhos antigos em *Aparelhos conectados*. |
+| WhatsApp: “não achei o contato” | Diga o nome como está salvo no celular (ou o número com DDD). Ele mostra os nomes parecidos que encontrou. |
 | Sem temperatura nos círculos | Abra o LibreHardwareMonitor. |
 | Notch some em um jogo | Use *Janela sem bordas* no jogo, ou deixe ligado *Jogo em tela cheia → outro monitor*. |
 
@@ -400,7 +412,7 @@ npm run tauri dev
 
 ### Publicar uma versão (com atualização automática)
 
-1. Aumente `"version"` em `src-tauri/tauri.conf.json` (ex.: `0.1.2`) e escreva as notas em `docs/releases/v0.1.2.md`.
+1. Aumente `"version"` em `src-tauri/tauri.conf.json` (ex.: `0.1.5`) e escreva as notas em `docs/releases/v0.1.5.md`.
 2. Rode:
 
    ```powershell
@@ -408,7 +420,7 @@ npm run tauri dev
    ```
 
    Ele gera o instalador **assinado** e o `latest.json` em `target/release/bundle/nsis/`.
-3. Crie a release **`v0.1.2`** no GitHub e anexe **o `.exe` e o `latest.json`**. As cópias instaladas do Jarvis encontram a nova versão em `releases/latest/download/latest.json` e oferecem a atualização.
+3. Crie a release **`v0.1.5`** no GitHub e anexe **o `.exe` e o `latest.json`**. As cópias instaladas do Jarvis encontram a nova versão em `releases/latest/download/latest.json` e oferecem a atualização.
 
 A assinatura usa a chave privada em `~/.tauri/jarvis-updater.key` (ou `TAURI_SIGNING_PRIVATE_KEY`). **Ela nunca vai para o repositório — guarde um backup:** sem ela, as cópias instaladas não aceitam novas atualizações.
 
@@ -430,10 +442,12 @@ npx tsc --noEmit -p .          # tipos
 cargo test -p openjarvis       # Rust
 ```
 
+> No Windows, o `build.rs` embute o manifesto *Common Controls v6* em todos os binários — sem ele os testes do Rust não abrem (erro `0xc0000139`).
+
 ### Prévia sem o app (no navegador)
 
 Com `npx vite` rodando, abra `http://localhost:1420/dev/notch-preview.html` — o notch inteiro com dados fictícios. Parâmetros úteis:
-`?open=agenda` (abre uma aba), `?widgets=1` / `?widgets=fps&game=1` (widgets), `?alert=1` (lembrete), `?net=off`.
+`?open=agenda` (abre uma aba), `?open=whatsapp&wachat=Ana Souza` (uma conversa), `?widgets=1` / `?widgets=fps&game=1` (widgets), `?alert=1` (lembrete), `?net=off`.
 
 As imagens deste README saem dela: `python scripts/readme_shots.py` (precisa de Chrome/Edge e `pip install pillow`).
 
@@ -443,7 +457,8 @@ As imagens deste README saem dela: `python scripts/readme_shots.py` (precisa de 
 src/                        front-end (TypeScript, sem framework)
   jarvis/notch_app.ts       notch + painel (abas, ajustes)
   jarvis/notch_widgets.ts   clima, círculos do PC, FPS, ping
-  jarvis/tool_tabs.ts       abas E-mail, Arquivos, Notas, GitHub, áudio
+  jarvis/tool_tabs.ts       abas E-mail, WhatsApp, Arquivos, Notas, GitHub, áudio
+  jarvis/voice.ts           voz: escuta, comando, resposta falada (sem markdown)
   jarvis/agenda_panel.ts    Agenda (Semana/Mês/Ano)
   jarvis/music_panel.ts     Spotify
   mochi/                    o mascote (Canvas 2D), roupas e acabamentos
@@ -455,6 +470,7 @@ src-tauri/src/              back-end (Rust)
   gmail.rs                  Gmail (ler, rascunho, enviar com Permitir)
   spotify_api.rs            Spotify Web API (PKCE)
   jarvis_browser.rs         navegador controlado (Chrome DevTools Protocol)
+  whatsapp.rs               WhatsApp Web oculto no próprio app (WebView2 + DevTools), aba e ferramentas
   pc_monitor.rs             CPU/RAM/GPU/disco, FPS via ETW, ping, temperaturas
   audio.rs                  saídas de som, microfone
   app_update.rs             atualizações pelo GitHub Releases (assinadas)

@@ -106,6 +106,8 @@ def main() -> None:
         ("panel-agenda", "open=agenda"),
         ("panel-spotify", "open=music"),
         ("panel-mail", "open=mail"),
+        ("panel-whatsapp", "open=whatsapp"),
+        ("panel-whatsapp-chat", "open=whatsapp&wachat=Ana Souza"),
         ("panel-files", "open=files&fq=contrato"),
         ("panel-notes", "open=notes"),
         ("panel-github", "open=github"),
