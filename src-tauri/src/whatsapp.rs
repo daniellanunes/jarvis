@@ -259,9 +259,31 @@ pub fn phone_digits(to: &str) -> Option<String> {
 const TITLE_JS: &str = r#"(() => {
   const h = document.querySelector('#main header');
   if (!h || !document.querySelector('#main footer [contenteditable="true"]')) return '';
-  const t = h.querySelector('span[title]') || h.querySelector('[dir="auto"]');
-  return (t?.getAttribute('title') || t?.innerText || 'conversa').trim();
+  // The name as shown, not a tooltip ("clique para mostrar os dados do contato")
+  // nor the status line ("online", "digitando…").
+  const skip = /clique|click|dados d|contact info|online|digitando|typing|visto por|last seen|gravando/i;
+  for (const e of h.querySelectorAll('span[dir="auto"], span[title], div[dir="auto"]')) {
+    const t = (e.innerText || '').trim();
+    if (t && !skip.test(t)) return t;
+  }
+  return 'conversa';
 })()"#;
+
+/// Is this message the user's own? WhatsApp has used several markers over
+/// time; any of them counts.
+const MINE_JS: &str = r#"(e => {
+  const id = e.closest('[data-id]')?.getAttribute('data-id') || '';
+  if (id.startsWith('true_')) return true;
+  if (id.startsWith('false_')) return false;
+  if (e.closest('.message-out')) return true;
+  if (e.closest('.message-in')) return false;
+  const row = e.closest('[role="row"], .focusable-list-item') || e.parentElement;
+  if (row?.querySelector('[data-icon^="msg-check"], [data-icon^="msg-dblcheck"], [data-icon="msg-time"], [data-icon^="tail-out"]')) return true;
+  // Markup-free: the user's own bubbles sit on the right half of the chat.
+  const main = document.querySelector('#main')?.getBoundingClientRect();
+  const b = e.getBoundingClientRect();
+  return !!main && b.width > 0 && (b.left + b.right) / 2 > (main.left + main.right) / 2;
+})"#;
 
 const SEARCH_BOX_JS: &str = r#"(() => {
   const side = document.querySelector('#side');
@@ -416,16 +438,18 @@ const CHATS_JS: &str = r#"(() => {
 fn messages_js(n: usize) -> String {
     format!(
         r#"(() => {{
+  const isMine = {mine_js};
   const els = [...document.querySelectorAll('#main [data-pre-plain-text]')].slice(-{n});
   return els.map(e => {{
     const pre = e.getAttribute('data-pre-plain-text') || '';
     const m = pre.match(/^\[(.*?)\]\s*(.*?):\s*$/);
-    const mine = !!e.closest('.message-out');
+    const mine = isMine(e);
     const text = (e.querySelector('.selectable-text') || e).innerText.trim();
     return {{ when: m ? m[1] : '', from: mine ? 'Você' : (m ? m[2] : ''), text, mine }};
   }});
 }})()"#,
-        n = n.clamp(1, 60)
+        n = n.clamp(1, 60),
+        mine_js = MINE_JS
     )
 }
 
@@ -445,6 +469,7 @@ pub async fn thread(chat: &str, count: usize) -> Result<WaThread, String> {
     let title = open_chat(&mut tab, chat).await?;
     tokio::time::sleep(Duration::from_millis(600)).await;
     let v = tab.eval(&messages_js(count)).await?;
+    log_structure(&mut tab).await;
     Ok(WaThread { title, messages: serde_json::from_value(v).unwrap_or_default() })
 }
 
@@ -478,22 +503,56 @@ pub async fn send(to: &str, message: &str) -> Result<String, String> {
     tokio::time::sleep(Duration::from_millis(300)).await;
     tab.enter().await?;
 
-    // Confirm it is in the chat as an outgoing message.
-    let probe: String = text.chars().take(40).collect();
+    // Sent = the box emptied and the text is now at the end of the chat. Not
+    // tied to WhatsApp's class names (they change); letters and digits only,
+    // since emoji render as images.
     let check = format!(
         r#"(() => {{
-  const outs = [...document.querySelectorAll('#main .message-out')];
-  const last = outs[outs.length - 1];
-  const t = last ? (last.querySelector('[data-pre-plain-text]')?.innerText || last.innerText || '') : '';
-  return t.replace(/\s+/g, ' ').includes({probe});
+  const norm = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const probe = norm({text}).slice(0, 30);
+  const box = document.querySelector('#main footer [contenteditable="true"]');
+  if (!box || (box.innerText || '').trim()) return false;
+  const tail = norm(document.querySelector('#main')?.innerText || '').slice(-4000);
+  return !probe || tail.includes(probe);
 }})()"#,
-        probe = serde_json::to_string(&probe).unwrap_or_default()
+        text = serde_json::to_string(&text).unwrap_or_default()
     );
-    if wait_for(&mut tab, &check, 6_000).await.is_some() {
+    let ok = wait_for(&mut tab, &check, 8_000).await.is_some();
+    log_structure(&mut tab).await;
+    if ok {
         crate::log::line(format!("whatsapp: mensagem enviada para {chat}"));
         Ok(format!("Mensagem enviada no WhatsApp para {chat}."))
     } else {
         Err(format!("Digitei a mensagem para {chat}, mas não consegui confirmar o envio. Confira no WhatsApp."))
+    }
+}
+
+/// Once per run: how WhatsApp marks the messages today (class names and
+/// counts only, never their text), to keep the selectors right.
+async fn log_structure(tab: &mut Tab) {
+    static DONE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+    // A couple of times per run is enough.
+    if DONE.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 2 {
+        return;
+    }
+    let js = r#"(() => {
+  const msgs = document.querySelectorAll('#main [data-pre-plain-text]');
+  const last = msgs[msgs.length - 1];
+  const chain = [];
+  for (let e = last, i = 0; e && i < 7; e = e.parentElement, i++) {
+    chain.push((e.className && typeof e.className === 'string' ? e.className.split(/\s+/).filter(c => /message|in|out|focus|row/i.test(c)).slice(0, 3).join('.') : '') || e.tagName.toLowerCase());
+  }
+  const ids = [...document.querySelectorAll('#main [data-id]')].map(e => e.getAttribute('data-id') || '');
+  return { prePlain: msgs.length, out: document.querySelectorAll('#main .message-out').length, in: document.querySelectorAll('#main .message-in').length,
+    idTrue: ids.filter(i => i.startsWith('true_')).length, idFalse: ids.filter(i => i.startsWith('false_')).length,
+    checkIcons: document.querySelectorAll('#main [data-icon^="msg-check"], #main [data-icon^="msg-dblcheck"]').length,
+    roleRows: document.querySelectorAll('#main [role="row"]').length, chain: chain.join(' < '),
+    // Which side each of the last messages sits on (no text).
+    sides: (() => { const m = document.querySelector('#main').getBoundingClientRect();
+      return [...msgs].slice(-6).map(x => { const b = x.getBoundingClientRect(); return b.width ? ((b.left + b.right) / 2 > (m.left + m.right) / 2 ? 'R' : 'L') : '?'; }).join(''); })() };
+})()"#;
+    if let Ok(v) = tab.eval(js).await {
+        crate::log::line(format!("whatsapp: estrutura da conversa {v}"));
     }
 }
 
@@ -524,9 +583,119 @@ pub async fn unread() -> Result<String, String> {
     Ok(out)
 }
 
-/// What a tool call sends to the brain, as JSON (for jarvis_tools).
-pub fn pending_command(to: &str, message: &str) -> String {
-    json!({ "to": to, "message": message }).to_string()
+// ── Confirming in the conversation ───────────────────────────────────────────
+//
+// A message the brain wants to send is held here, Jarvis reads back who and
+// what and asks "Posso enviar?". The user's next words decide: "sim" sends it,
+// "não" drops it (answered in jarvis_ask before the AI), anything else goes to
+// the AI as usual (which may prepare a corrected message).
+
+struct Held {
+    to: String,
+    message: String,
+    at: Instant,
+}
+
+static HELD: std::sync::Mutex<Option<Held>> = std::sync::Mutex::new(None);
+/// After this the question is stale: "sim" no longer sends anything.
+const HOLD_FOR: Duration = Duration::from_secs(180);
+
+fn who(to: &str) -> String {
+    if is_self(to) {
+        "você mesmo".into()
+    } else {
+        to.trim().to_string()
+    }
+}
+
+/// The brain's `whatsapp_send`. The first call holds the message and returns
+/// what Jarvis must ask; the same message again, in a later turn, is the
+/// user's yes (when it reached the AI instead of the quick answer below).
+pub enum Prepared {
+    /// Ask the user (the text tells the AI what to say).
+    Ask(String),
+    /// Confirmed: send it now.
+    Send(String, String),
+}
+
+pub fn prepare(to: &str, message: &str) -> Prepared {
+    let mut held = HELD.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(h) = held.as_ref() {
+        let same = fold(&h.to) == fold(to) && h.message.trim() == message.trim();
+        let later_turn = h.at.elapsed() > Duration::from_secs(3) && h.at.elapsed() < HOLD_FOR;
+        if same && later_turn {
+            let h = held.take().unwrap();
+            return Prepared::Send(h.to, h.message);
+        }
+    }
+    *held = Some(Held { to: to.trim().to_string(), message: message.trim().to_string(), at: Instant::now() });
+    Prepared::Ask(format!(
+        "Mensagem PREPARADA, ainda NÃO enviada. Responda ao usuário exatamente assim e nada mais: Vou mandar para {}: \"{}\". Posso enviar?",
+        who(to),
+        message.trim()
+    ))
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Answer {
+    Yes,
+    No,
+    /// Not an answer to the question (a correction, another request…).
+    Other,
+}
+
+/// "sim", "pode mandar", "manda aí" / "não", "cancela", "deixa pra lá".
+pub fn answer_kind(said: &str) -> Answer {
+    let t: String = fold(said).chars().map(|c| if c.is_alphanumeric() || c == ' ' { c } else { ' ' }).collect();
+    let mut words: Vec<&str> = t.split_whitespace().collect();
+    // "Jarvis, sim" — the name said again out of habit.
+    if words.first().is_some_and(|w| w.starts_with("jarv") || *w == "javis") {
+        words.remove(0);
+    }
+    if words.is_empty() || words.len() > 8 {
+        return Answer::Other;
+    }
+    let has = |list: &[&str]| words.iter().any(|w| list.contains(w));
+    let changes = ["muda", "mude", "troca", "troque", "altera", "altere", "corrige", "acrescenta", "coloca", "escreve", "vez", "mas"];
+    if has(&changes) {
+        return Answer::Other;
+    }
+    let no = ["nao", "cancela", "cancelar", "cancele", "esquece", "deixa", "negativo", "nunca"];
+    if has(&no) {
+        return Answer::No;
+    }
+    let yes = [
+        "sim", "pode", "manda", "mande", "envia", "envie", "enviar", "mandar", "confirmo", "confirma", "confirmado", "isso", "ok", "okay",
+        "claro", "beleza", "positivo", "certo", "perfeito", "bora", "vai", "s", "aham", "uhum", "exato",
+    ];
+    if has(&yes) {
+        Answer::Yes
+    } else {
+        Answer::Other
+    }
+}
+
+/// Answers the held question when `said` is a yes or a no. None = nothing
+/// held (or not an answer): the request goes to the AI as usual.
+pub async fn answer_held(said: &str) -> Option<String> {
+    let kind = {
+        let held = HELD.lock().unwrap_or_else(|e| e.into_inner());
+        match held.as_ref() {
+            Some(h) if h.at.elapsed() < HOLD_FOR => answer_kind(said),
+            _ => return None,
+        }
+    };
+    let taken = match kind {
+        Answer::Other => return None,
+        _ => HELD.lock().unwrap_or_else(|e| e.into_inner()).take()?,
+    };
+    Some(match kind {
+        Answer::Yes => match send(&taken.to, &taken.message).await {
+            Ok(_) => format!("Pronto, mandei para {}.", who(&taken.to)),
+            Err(e) => e,
+        },
+        _ => "Ok, não enviei.".into(),
+    })
 }
 
 // ── Commands for the notch tab ───────────────────────────────────────────────
@@ -564,6 +733,31 @@ mod tests {
         for s in ["Ana", "Mãe", "Eugênio", "Daniel Levy"] {
             assert!(!is_self(s), "{s}");
         }
+    }
+
+    #[test]
+    fn yes_and_no_to_send_or_not() {
+        for s in ["Sim", "sim, pode mandar", "Pode enviar.", "manda aí", "Jarvis, sim", "isso mesmo", "ok", "confirmo", "sim, manda para ele"] {
+            assert_eq!(answer_kind(s), Answer::Yes, "{s}");
+        }
+        for s in ["Não", "não manda não", "cancela", "deixa pra lá", "esquece"] {
+            assert_eq!(answer_kind(s), Answer::No, "{s}");
+        }
+        for s in ["muda para oi tudo bem", "sim, mas troca o texto", "que horas são em Tóquio agora meu amigo querido", "toca uma música"] {
+            assert_eq!(answer_kind(s), Answer::Other, "{s}");
+        }
+    }
+
+    #[test]
+    fn the_same_message_again_later_is_the_yes() {
+        *HELD.lock().unwrap() = None;
+        assert!(matches!(prepare("Ana", "oi"), Prepared::Ask(_)));
+        // Same turn (a double call): still only asking.
+        assert!(matches!(prepare("Ana", "oi"), Prepared::Ask(_)));
+        // Pretend the question was asked a while ago.
+        HELD.lock().unwrap().as_mut().unwrap().at = Instant::now() - Duration::from_secs(10);
+        assert!(matches!(prepare("ana", "oi"), Prepared::Send(..)));
+        assert!(HELD.lock().unwrap().is_none());
     }
 
     #[test]

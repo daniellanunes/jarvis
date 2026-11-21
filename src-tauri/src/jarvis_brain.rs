@@ -586,6 +586,12 @@ async fn jarvis_ask_inner(
 ) -> Result<JarvisReply, String> {
     let selected_agent = normalize_agent(agent);
 
+    // "Sim" / "não" to "Posso enviar?" (a WhatsApp message read back to the
+    // user): answered here, at once, without the AI.
+    if let Some(text) = crate::whatsapp::answer_held(&prompt).await {
+        return Ok(JarvisReply { text, provider_used: "WhatsApp".to_string(), actions: Vec::new(), pending_actions: Vec::new() });
+    }
+
     // Simple, unambiguous commands run right away, with no AI round trip.
     if image_base64.as_deref().map_or(true, str::is_empty) {
         if let Some(intent) = crate::jarvis_fastpath::parse(&prompt) {

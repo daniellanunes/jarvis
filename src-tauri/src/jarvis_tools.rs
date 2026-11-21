@@ -96,7 +96,7 @@ pub fn declarations() -> Vec<Value> {
         }),
         json!({
             "name": "whatsapp_send",
-            "description": "Manda uma mensagem de WhatsApp. SEMPRE fica aguardando o usuário tocar em Permitir antes de enviar. Só quando o usuário pediu para mandar mensagem.",
+            "description": "Manda uma mensagem de WhatsApp. A primeira chamada NÃO envia: ela prepara e você pergunta ao usuário se pode enviar. Só quando o usuário pediu para mandar mensagem.",
             "parameters": {"type": "OBJECT", "properties": {
                 "to": {"type": "STRING", "description": "Nome do contato ou grupo como o usuário falou, um número com DDD, ou \"eu\" quando é para o próprio usuário (\"manda pra mim\")."},
                 "message": {"type": "STRING"}
@@ -121,7 +121,7 @@ pub fn declarations() -> Vec<Value> {
 /// Extra rules for the system prompt.
 pub const PROMPT_RULES: &str = r#"
 8. Gmail: SÓ use `gmail_search`/`gmail_read`/`gmail_draft` quando o usuário pedir explicitamente algo sobre e-mail. Nunca mencione, conte ou resuma e-mails por iniciativa própria. Para responder/escrever, crie o rascunho com `gmail_draft`; com send=true o envio fica aguardando Permitir — avise isso.
-9. WhatsApp: SÓ use as ferramentas de WhatsApp quando o usuário pedir explicitamente; nunca leia, conte ou comente mensagens por iniciativa própria. Enviar: `whatsapp_send` (fica aguardando Permitir; "manda pra mim" → to "eu"). Ler uma conversa: `whatsapp_read`. "Tenho mensagem nova?": `whatsapp_unread`. Escreva a mensagem como o usuário escreveria e resuma o que leu em poucas frases.
+9. WhatsApp: SÓ use as ferramentas de WhatsApp quando o usuário pedir explicitamente; nunca leia, conte ou comente mensagens por iniciativa própria. Enviar: chame `whatsapp_send` ("manda pra mim" → to "eu"); ele só PREPARA — repita ao usuário a pessoa e o texto exato e pergunte "Posso enviar?". Se o usuário confirmar, chame `whatsapp_send` de novo com os mesmos dados; se pedir mudança, chame com o texto novo e pergunte de novo. Ler uma conversa: `whatsapp_read`. "Tenho mensagem nova?": `whatsapp_unread`. Escreva a mensagem como o usuário escreveria e resuma o que leu em poucas frases.
 10. "Bom dia", "como está meu dia", "o que tenho hoje": chame `daily_briefing` e responda em 2-4 frases naturais.
 11. Arquivos: `file_search` e depois `file_open`. Notas/Obsidian: `notes_search`, `notes_read`, `notes_write` ("anota isso…").
 12. Som: `audio_output` para trocar fone/caixa; `mic_mute` para o microfone; `set_volume` para volume. Internet lenta/caiu: `internet_status`. GitHub: `github_overview`.
@@ -351,12 +351,12 @@ pub async fn run(
         }
         "github_overview" => github_overview().await.map(|p| serde_json::to_string(&p).unwrap_or_default()),
         "whatsapp_send" => match (s("to"), s("message")) {
-            (Some(to), Some(msg)) => {
-                let cmd = crate::whatsapp::pending_command(&to, &msg);
-                let who = if crate::whatsapp::is_self(&to) { "você mesmo".to_string() } else { to.clone() };
-                queue(WHATSAPP, &cmd, &format!("WhatsApp para {who}: {msg}"));
-                Ok(format!("Mensagem para {who} AGUARDANDO o usuário tocar em Permitir. Não diga que já enviou."))
-            }
+            // Confirmed in the conversation, not with a button: the first call
+            // holds it and Jarvis asks "Posso enviar?" (whatsapp.rs).
+            (Some(to), Some(msg)) => match crate::whatsapp::prepare(&to, &msg) {
+                crate::whatsapp::Prepared::Ask(say) => Ok(say),
+                crate::whatsapp::Prepared::Send(to, msg) => crate::whatsapp::send(&to, &msg).await,
+            },
             _ => Err("Falta o contato ou a mensagem.".into()),
         },
         "whatsapp_read" => match s("chat") {

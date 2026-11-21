@@ -293,7 +293,7 @@ O WhatsApp fica **dentro do Jarvis**, numa aba do notch — sem navegador por fo
 2. No celular: WhatsApp → **⋮ / Configurações → Aparelhos conectados → Conectar um aparelho** → aponte para o código.
 3. Pronto: a aba mostra suas conversas (não lidas em destaque). Clique numa para ler e responder ali mesmo.
 
-Por voz: “manda no WhatsApp pra mim: comprar pão”, “lê a conversa com a Ana”, “tenho mensagem nova no WhatsApp?”. O Jarvis **só lê quando você pede**, e o que a IA for enviar espera você tocar em **Permitir** (o que você mesmo digita na aba vai direto).
+Por voz: “manda no WhatsApp pra mim: comprar pão”, “lê a conversa com a Ana”, “tenho mensagem nova no WhatsApp?”. O Jarvis **só lê quando você pede**. Antes de enviar, ele repete **a pessoa e o texto** e pergunta *“Posso enviar?”*: responda **“sim”** (envia na hora), **“não”** (cancela) ou peça uma correção. O que você mesmo digita na aba vai direto.
 
 > A sessão fica só no seu PC (`%LOCALAPPDATA%\OpenJarvis\whatsapp-web`). Para desconectar, remova o aparelho em *Aparelhos conectados* no celular.
 
@@ -325,7 +325,7 @@ Diga **“Jarvis”** e o pedido, clique no notch e digite, ou use **Ctrl+Alt+Es
 | “Abre o YouTube e procura lo-fi” | Navegador do Jarvis abre, busca e clica |
 | “O que tem na minha tela?” | Lê a tela e explica |
 | “Minha internet tá lenta?” | Ping e teste de velocidade |
-| “Manda no WhatsApp pra Ana que vou atrasar” / “manda pra mim: comprar pão” | WhatsApp do notch, com Permitir |
+| “Manda no WhatsApp pra Ana que vou atrasar” / “manda pra mim: comprar pão” | Ele confirma a pessoa e o texto e pergunta se pode enviar |
 | “Tenho mensagem nova no WhatsApp?” / “lê a conversa com a Ana” | Só quando você pede |
 
 ### Atalhos de teclado
@@ -354,7 +354,7 @@ Exemplo — **Modo jogo**: gatilho `app:valorant`, passos `close:chrome, saida:f
 
 - **Tudo é por usuário do Windows.** Chaves e tokens ficam no **Cofre de Credenciais do Windows**; configurações, contas de IA e dados ficam no seu perfil (`%APPDATA%` / `%LOCALAPPDATA%`). Outro usuário do PC não vê nada seu.
 - **Nada é enviado para servidores do Jarvis** — não existem. Os pedidos vão direto para as IAs/serviços que **você** conectou.
-- **Gmail só sob demanda**, e nada sai do PC (e-mail, WhatsApp) sem você tocar em **Permitir**.
+- **Gmail e WhatsApp só sob demanda**. E-mail só sai com **Permitir**; WhatsApp, depois que você confirma por voz ou texto (“sim”).
 - **Comandos do sistema**: em Ajustes → IA & Voz, ligue **Confirmar comandos do sistema** para aprovar cada comando de PowerShell/CMD antes de rodar.
 - **Troca automática de IA** nunca repete um pedido que já fez algo (ex.: criar evento), para não duplicar.
 
