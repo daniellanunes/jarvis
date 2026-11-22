@@ -126,6 +126,8 @@ pub struct Settings {
     pub jarvis_voice_vocab: String,
     /// The program projects open in ("" = the first editor found).
     pub jarvis_code_editor: String,
+    /// The notch's look: "graphite" (default) | "glass" (Cristal) | "midnight".
+    pub jarvis_theme: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -209,6 +211,7 @@ impl Default for Settings {
             jarvis_wake_threshold: 0.5,
             jarvis_voice_vocab: String::new(),
             jarvis_code_editor: String::new(),
+            jarvis_theme: "graphite".into(),
         }
     }
 }
@@ -513,7 +516,8 @@ mod tests {
   "jarvisWakeEngine": "cloud",
   "jarvisWakeThreshold": 0.625,
   "jarvisVoiceVocab": "FC 26, Daniel",
-  "jarvisCodeEditor": "C:\\Editor\\editor.exe"
+  "jarvisCodeEditor": "C:\\Editor\\editor.exe",
+  "jarvisTheme": "glass"
 }"##;
 
     fn custom() -> Value {
@@ -945,6 +949,7 @@ mod tests {
                 "jarvisWakeThreshold",
                 "jarvisVoiceVocab",
                 "jarvisCodeEditor",
+                "jarvisTheme",
             ]
         );
         let _ = std::fs::remove_dir_all(&dir);

@@ -1,6 +1,7 @@
 import "./notch.css";
 import "./notch_v2.css";
 import "./notch_motion.css";
+import "./glass.css";
 import {
   Bridge,
   onEvent,
@@ -400,6 +401,7 @@ export async function startJarvisNotch(root: HTMLElement) {
   if (boot) {
     State.settings = { ...State.settings, ...boot.settings };
   }
+  applyTheme();
   Sound.setEnabled(State.settings.soundEnabled);
   Sound.setVolume(State.settings.soundVolume);
 
@@ -643,7 +645,16 @@ export async function startJarvisNotch(root: HTMLElement) {
 
   async function saveSettings(s: Settings) {
     State.settings = s;
+    applyTheme();
     await Bridge.saveSettings(s);
+  }
+
+  /** The chosen look (glass.css): classes on <html>, applied at once. */
+  function applyTheme() {
+    const t = State.settings.jarvisTheme || "graphite";
+    const cl = document.documentElement.classList;
+    cl.toggle("glass", t === "glass" || t === "midnight");
+    cl.toggle("midnight", t === "midnight");
   }
 
   function getAgentsList(): AgentOption[] {
@@ -2031,7 +2042,32 @@ export async function startJarvisNotch(root: HTMLElement) {
       render();
     });
 
+    const theme = State.settings.jarvisTheme || "graphite";
+    const themeOption = (id: string, title: string, desc: string) =>
+      h(
+        "button",
+        {
+          class: `brain-card ${theme === id ? "selected" : ""}`,
+          style: "text-align:left",
+          onclick: async () => {
+            await saveSettings({ ...State.settings, jarvisTheme: id });
+            render();
+          },
+        },
+        h("div", { class: `theme-swatch ${id}` }),
+        h("div", { style: "font-weight:600;font-size:12.5px;margin-bottom:4px", text: title }),
+        h("div", { style: "font-size:11.5px;color:var(--text-3);line-height:1.4", text: desc }),
+      );
+
     main.append(
+      sectionHead("Visual"),
+      h(
+        "div",
+        { style: "display:grid;grid-template-columns:repeat(3,1fr);gap:10px" },
+        themeOption("graphite", "Grafite", "Sóbrio e plano, cinza neutro. O visual clássico do Jarvis."),
+        themeOption("glass", "Cristal", "Vidro com brilho nas bordas e luz suave colorida, no estilo do iOS."),
+        themeOption("midnight", "Meia-noite", "O mesmo vidro em tons de azul profundo."),
+      ),
       sectionHead("Quando o notch aparece"),
       h(
         "div",

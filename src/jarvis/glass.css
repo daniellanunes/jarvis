@@ -1,0 +1,370 @@
+/* Jarvis — "Cristal" theme (inspired by Apple's Liquid Glass).
+   Everything here is scoped to `html.glass` (Ajustes → Notch → Visual) and sits
+   on top of the graphite theme, which stays the fallback.
+
+   The window is transparent over the desktop, and a page cannot blur what lies
+   behind its window — only Windows could, and for the whole window rectangle.
+   So the glass is built in the panel itself: a dark tinted base lit by soft
+   colour (static gradients), translucent layers with a bright specular rim on
+   top, capsule controls and deep but soft shadows. No backdrop-filter in the
+   scrolling content: it would undo the smooth (GPU) scrolling. */
+
+html.glass {
+  --bg: #0e0f14;
+  --sidebar: rgba(255, 255, 255, 0.025);
+  --surface: rgba(255, 255, 255, 0.055);
+  --surface-2: rgba(255, 255, 255, 0.085);
+  --card: rgba(255, 255, 255, 0.055);
+  --card-2: rgba(255, 255, 255, 0.085);
+  --hover: rgba(255, 255, 255, 0.07);
+  --press: rgba(255, 255, 255, 0.11);
+  --border: rgba(255, 255, 255, 0.1);
+  --border-hi: rgba(255, 255, 255, 0.16);
+  --line: rgba(255, 255, 255, 0.08);
+  --text: #f4f5f8;
+  --text-2: #b4b7c2;
+  --text-3: #7d8190;
+  --r-sm: 10px;
+  --r-md: 12px;
+  --r-lg: 16px;
+
+  /* The glass recipe, reused below. */
+  --glass-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.085) 0%, rgba(255, 255, 255, 0.035) 100%);
+  --glass-fill-hi: linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.07) 100%);
+  --glass-rim: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --glass-rim-hi: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  --glass-drop: 0 10px 30px -12px rgba(0, 0, 0, 0.55);
+}
+
+/* ── The panel: tinted base, soft coloured light, a lit rim ─────────────────── */
+html.glass .notch-panel {
+  background-color: #0e0f14;
+  background-image:
+    radial-gradient(60% 55% at 12% 0%, rgba(110, 140, 255, 0.16), transparent 70%),
+    radial-gradient(55% 50% at 100% 100%, rgba(64, 214, 190, 0.11), transparent 70%),
+    radial-gradient(40% 40% at 70% 20%, rgba(190, 120, 255, 0.07), transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-top: none;
+  border-radius: 0 0 24px 24px;
+  box-shadow:
+    inset 0 -1px 0 rgba(255, 255, 255, 0.08),
+    inset 1px 0 0 rgba(255, 255, 255, 0.05),
+    inset -1px 0 0 rgba(255, 255, 255, 0.05),
+    0 30px 80px -10px rgba(0, 0, 0, 0.75),
+    0 2px 10px rgba(0, 0, 0, 0.4);
+}
+/* The content area lets that light through (scrolling stays on the GPU: the
+   will-change hint in notch_motion.css). */
+html.glass .main {
+  background-color: transparent;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────────── */
+html.glass .sidebar {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+}
+html.glass .nav-item {
+  border-radius: 12px;
+  transition: background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+}
+html.glass .nav-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+html.glass .nav-item.active {
+  background: var(--glass-fill-hi);
+  box-shadow: var(--glass-rim-hi), 0 6px 18px -8px rgba(0, 0, 0, 0.6);
+  color: #fff;
+}
+html.glass .nav-item.active::before {
+  display: none;
+}
+html.glass .nav-item.active .nav-icon {
+  opacity: 1;
+}
+html.glass .nav-badge {
+  color: var(--text-2);
+}
+
+/* ── Surfaces: cards, tiles, settings cards ─────────────────────────────────── */
+html.glass .card,
+html.glass .tt-card,
+html.glass .stat-tile,
+html.glass .mini-chat-card,
+html.glass .update-card {
+  background: var(--glass-fill);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  box-shadow: var(--glass-rim), var(--glass-drop);
+}
+html.glass .stat-tile:hover {
+  background: var(--glass-fill-hi);
+}
+
+/* Option cards (Visual, notch mode, IA): glass, the chosen one lit. */
+html.glass .brain-card {
+  background: var(--glass-fill);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  box-shadow: var(--glass-rim);
+}
+html.glass .brain-card:hover {
+  background: var(--glass-fill-hi);
+}
+html.glass .brain-card.selected {
+  background: var(--glass-fill-hi);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: var(--glass-rim-hi), 0 0 0 3px rgba(140, 170, 255, 0.14), var(--glass-drop);
+}
+
+/* List rows (e-mail, WhatsApp, files…): glass only on hover. */
+html.glass .tt-row {
+  border-radius: 14px;
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+html.glass .tt-row:hover {
+  background: var(--glass-fill);
+  box-shadow: var(--glass-rim);
+}
+
+/* ── Controls: capsules ─────────────────────────────────────────────────────── */
+html.glass .btn {
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffffff 0%, #dfe3ec 100%);
+  color: #0d0e12;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 6px 16px -6px rgba(0, 0, 0, 0.6);
+}
+html.glass .btn:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #eef1f7 100%);
+}
+html.glass .btn-ghost,
+html.glass .link-btn.quiet {
+  background: var(--glass-fill);
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: var(--glass-rim);
+}
+html.glass .btn-ghost:hover {
+  background: var(--glass-fill-hi);
+}
+html.glass .tt-chip,
+html.glass .filter-chip,
+html.glass .agent-chip,
+html.glass .outfit-chip,
+html.glass .auth-mode-btn {
+  border-radius: 999px;
+  background: var(--glass-fill);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: var(--glass-rim);
+}
+html.glass .tt-chip.on,
+html.glass .filter-chip.on,
+html.glass .agent-chip.on,
+html.glass .outfit-chip.on,
+html.glass .auth-mode-btn.on {
+  background: linear-gradient(180deg, #ffffff 0%, #dfe3ec 100%);
+  border-color: rgba(255, 255, 255, 0.6);
+  color: #0d0e12;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* Fields sink into the glass. */
+html.glass .input,
+html.glass .prompt-bar {
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+}
+html.glass .input:focus,
+html.glass .prompt-bar:focus-within {
+  border-color: rgba(140, 170, 255, 0.6);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35), 0 0 0 4px rgba(110, 140, 255, 0.16);
+}
+
+/* ── Chat and WhatsApp bubbles ──────────────────────────────────────────────── */
+html.glass .msg.user {
+  background: var(--glass-fill-hi);
+  border-radius: 18px 18px 6px 18px;
+  box-shadow: var(--glass-rim);
+}
+html.glass .wa-msg {
+  background: var(--glass-fill);
+  box-shadow: var(--glass-rim);
+  border-radius: 16px 16px 16px 6px;
+}
+html.glass .wa-msg.mine {
+  background: linear-gradient(180deg, rgba(52, 211, 120, 0.3), rgba(34, 160, 90, 0.2));
+  box-shadow: inset 0 1px 0 rgba(160, 255, 200, 0.28), inset 0 0 0 1px rgba(80, 230, 140, 0.18);
+  border-radius: 16px 16px 6px 16px;
+}
+html.glass .wa-badge {
+  background: linear-gradient(180deg, #4ade80, #22c55e);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* ── The compact notch: a glass capsule hanging from the top edge ───────────── */
+html.glass .notch-pill,
+html.glass .notch-voice-bar {
+  background: linear-gradient(180deg, rgba(36, 38, 48, 0.97) 0%, rgba(14, 15, 20, 0.97) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-top: none;
+  border-radius: 0 0 20px 20px;
+  box-shadow:
+    inset 0 -1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 1px 6px rgba(255, 255, 255, 0.05),
+    0 12px 32px -6px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+html.glass .notch-pill:hover {
+  background: linear-gradient(180deg, rgba(46, 48, 60, 0.97) 0%, rgba(18, 19, 26, 0.97) 100%);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+/* Scrollbars as thin glass. */
+html.glass .main::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 99px;
+}
+
+/* ── "Meia-noite": the same glass, in deep blue ─────────────────────────────── */
+html.glass.midnight {
+  --bg: #0a0f1f;
+  --text-2: #b3bdd6;
+  --text-3: #7b86a3;
+}
+html.glass.midnight .notch-panel {
+  background-color: #0a0f1f;
+  background-image:
+    radial-gradient(70% 60% at 0% 0%, rgba(70, 110, 255, 0.26), transparent 70%),
+    radial-gradient(55% 55% at 100% 100%, rgba(40, 90, 220, 0.2), transparent 70%),
+    radial-gradient(35% 35% at 80% 10%, rgba(120, 180, 255, 0.1), transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0));
+}
+html.glass.midnight .input:focus,
+html.glass.midnight .prompt-bar:focus-within {
+  border-color: rgba(120, 160, 255, 0.7);
+}
+
+/* ── The visual picker's swatches (Ajustes → Notch) ─────────────────────────── */
+.theme-swatch {
+  height: 54px;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+.theme-swatch::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 40%;
+  bottom: 10px;
+  height: 14px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.theme-swatch.graphite {
+  background: #141416;
+}
+.theme-swatch.graphite::after {
+  border-radius: 4px;
+  background: #212125;
+}
+.theme-swatch.glass {
+  background:
+    radial-gradient(70% 90% at 10% 0%, rgba(110, 140, 255, 0.35), transparent 70%),
+    radial-gradient(60% 80% at 100% 100%, rgba(64, 214, 190, 0.28), transparent 70%),
+    #0e0f14;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.theme-swatch.glass::after {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.1));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.theme-swatch.midnight {
+  background:
+    radial-gradient(80% 100% at 0% 0%, rgba(70, 110, 255, 0.5), transparent 70%),
+    radial-gradient(60% 80% at 100% 100%, rgba(40, 90, 220, 0.4), transparent 70%),
+    #0a0f1f;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.theme-swatch.midnight::after {
+  background: linear-gradient(180deg, rgba(160, 190, 255, 0.35), rgba(120, 150, 255, 0.12));
+  box-shadow: inset 0 1px 0 rgba(200, 220, 255, 0.5);
+}
+
+/* ── Stronger glass (v2): the effect has to read at a glance ─────────────────
+   A reflection band across the top, a bright lit rim, colour bleeding in at
+   the edges (as light through thick glass) and a soft coloured glow. */
+html.glass {
+  --glass-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 55%, rgba(255, 255, 255, 0.06) 100%);
+  --glass-fill-hi: linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.08) 55%, rgba(255, 255, 255, 0.1) 100%);
+  --glass-rim: inset 0 1px 0 rgba(255, 255, 255, 0.26), inset 0 -1px 0 rgba(255, 255, 255, 0.07), inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  --glass-rim-hi: inset 0 1px 0 rgba(255, 255, 255, 0.42), inset 0 -1px 0 rgba(255, 255, 255, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  --glass-tint-a: 110, 140, 255;
+  --glass-tint-b: 64, 214, 190;
+}
+html.glass.midnight {
+  --glass-tint-a: 80, 120, 255;
+  --glass-tint-b: 120, 170, 255;
+}
+
+/* The pill: thick glass hanging from the top edge. */
+html.glass .notch-pill,
+html.glass .notch-voice-bar {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 50%, rgba(255, 255, 255, 0.1) 100%),
+    radial-gradient(90% 160% at 0% 110%, rgba(var(--glass-tint-a), 0.42), transparent 60%),
+    radial-gradient(90% 160% at 100% 110%, rgba(var(--glass-tint-b), 0.34), transparent 60%),
+    rgba(18, 20, 28, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-top: none;
+  border-radius: 0 0 22px 22px;
+  box-shadow:
+    inset 0 -1.5px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -10px 18px -12px rgba(var(--glass-tint-a), 0.9),
+    inset 0 0 14px rgba(255, 255, 255, 0.07),
+    0 16px 36px -10px rgba(0, 0, 0, 0.8),
+    0 6px 26px -8px rgba(var(--glass-tint-a), 0.55);
+}
+html.glass .notch-pill:hover {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.03) 50%, rgba(255, 255, 255, 0.14) 100%),
+    radial-gradient(90% 160% at 0% 110%, rgba(var(--glass-tint-a), 0.55), transparent 60%),
+    radial-gradient(90% 160% at 100% 110%, rgba(var(--glass-tint-b), 0.45), transparent 60%),
+    rgba(22, 24, 34, 0.88);
+  border-color: rgba(255, 255, 255, 0.42);
+}
+
+/* The panel: more light, a sheen across the top, a lit rim all round. */
+html.glass .notch-panel {
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 22%),
+    radial-gradient(60% 60% at 8% 0%, rgba(var(--glass-tint-a), 0.3), transparent 70%),
+    radial-gradient(55% 55% at 100% 100%, rgba(var(--glass-tint-b), 0.2), transparent 70%),
+    radial-gradient(40% 40% at 72% 18%, rgba(190, 120, 255, 0.1), transparent 70%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-top: none;
+  box-shadow:
+    inset 0 -1.5px 0 rgba(255, 255, 255, 0.3),
+    inset 1px 0 0 rgba(255, 255, 255, 0.1),
+    inset -1px 0 0 rgba(255, 255, 255, 0.1),
+    inset 0 -24px 40px -30px rgba(var(--glass-tint-a), 0.6),
+    0 30px 80px -10px rgba(0, 0, 0, 0.8),
+    0 10px 40px -12px rgba(var(--glass-tint-a), 0.35);
+}
+html.glass .sidebar {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.25);
+}
+html.glass .nav-item.active {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.08) 60%, rgba(255, 255, 255, 0.12) 100%),
+    radial-gradient(80% 120% at 0% 100%, rgba(var(--glass-tint-a), 0.35), transparent 70%);
+  box-shadow: var(--glass-rim-hi), 0 8px 22px -8px rgba(var(--glass-tint-a), 0.55);
+}

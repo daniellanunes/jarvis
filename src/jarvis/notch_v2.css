@@ -1536,3 +1536,9 @@ button {
 .ag-mini-day.today::after {
   background: var(--accent-fg);
 }
+
+/* Option cards (Visual, notch mode, IA…): their text was left to the button
+   default, almost black on the dark panel. */
+.brain-card {
+  color: var(--text);
+}

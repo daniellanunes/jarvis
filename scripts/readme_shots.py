@@ -116,6 +116,8 @@ def main() -> None:
         ("settings-ai", "open=settings&scroll=Trocar de IA automaticamente"),
         ("settings-notch", "open=settings&sub=Notch&scroll=Informações no notch"),
         ("settings-voice", "open=settings&enrolled=1&scroll=Reconhecimento da sua voz"),
+        ("settings-visual", "open=settings&sub=Notch&theme=glass"),
+        ("panel-glass", "open=home&widgets=1&theme=glass"),
         ("settings-folders", "open=settings&scroll=Editor de código dos projetos"),
     ]
     imgs = {n: raw(q, 3800) for n, q in tabs}
@@ -123,6 +125,20 @@ def main() -> None:
     for n, img in imgs.items():
         img.crop(box).save(OUT / f"{n}.png", optimize=True)
         print("ok", n)
+    # The three looks of the pill, one under the other.
+    pills = []
+    for theme in ["graphite", "glass", "midnight"]:
+        p = raw(f"widgets=1&theme={theme}", 4200)
+        pills.append(p.crop(content_box(p, 40)))
+    w = max(i.width for i in pills)
+    sheet = Image.new("RGB", (w, sum(i.height for i in pills) + 40), pills[0].getpixel((2, 2)))
+    y = 0
+    for i in pills:
+        sheet.paste(i, ((w - i.width) // 2, y))
+        y += i.height + 20
+    sheet.save(OUT / "notch-themes.png", optimize=True)
+    print("ok notch-themes")
+
     tour = ["panel-home", "panel-agenda", "panel-spotify", "panel-mail", "panel-files", "panel-notes", "panel-github", "panel-pc"]
     gif("tour", [imgs[n].crop(box) for n in tour], 1600, 900)
 

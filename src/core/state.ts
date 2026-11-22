@@ -196,6 +196,8 @@ export interface Settings {
   jarvisVoiceVocab?: string;
   /** The program projects open in ("" = the first editor found). */
   jarvisCodeEditor?: string;
+  /** The notch's look: "graphite" | "glass" (Cristal) | "midnight". */
+  jarvisTheme?: string;
   /** "local": the enrolled "Jarvis" spotted on the PC; "cloud": transcribed sentences. */
   jarvisWakeEngine?: "local" | "cloud";
   /** Local wake word: 0.35 (easier) – 0.7 (stricter). */
@@ -253,6 +255,7 @@ export const DEFAULT_SETTINGS: Settings = {
   jarvisMicName: "",
   jarvisVoiceVocab: "",
   jarvisCodeEditor: "",
+  jarvisTheme: "graphite",
   jarvisWakeEngine: "local",
   jarvisWakeThreshold: 0.45,
 };

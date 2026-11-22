@@ -59,6 +59,12 @@ Uma pílula no topo da tela, com o mascote, a música tocando e as informações
 | <img src="docs/images/notch-youtube.png" alt="Notch mostrando um vídeo do YouTube"> | Mostra o que toca em **qualquer app** (YouTube, VLC, Netflix…), não só no Spotify. |
 | <img src="docs/images/notch-alert.png" alt="Lembrete no notch"> | **Lembretes** da agenda aparecem com som e voz na hora certa. |
 
+**Três visuais** para escolher em Ajustes → Notch → *Visual*: **Grafite** (sóbrio, cinza neutro), **Cristal** (vidro no estilo do iOS, com luz colorida e bordas brilhantes) e **Meia-noite** (o mesmo vidro em azul profundo).
+
+<img src="docs/images/notch-themes.png" width="820" alt="A pílula nos visuais Grafite, Cristal e Meia-noite">
+
+<img src="docs/images/panel-glass.png" width="820" alt="Painel no visual Cristal">
+
 O notch pode ficar **sempre visível** ou **escondido** (aparece ao passar o mouse no meio da borda de cima ou quando você fala com o Jarvis), no monitor principal, num monitor específico ou **nos dois** (segue o mouse).
 
 ### O painel
@@ -277,10 +283,13 @@ Agora “toca Dawn FM do The Weeknd” toca **exatamente** isso.
 
 Ajustes → **Notch**:
 
+<img src="docs/images/settings-visual.png" width="720" alt="Escolha do visual">
+
 <img src="docs/images/settings-notch.png" width="720" alt="Ajustes do notch">
 
 | Opção | O que faz |
 |---|---|
+| **Visual** | **Grafite**, **Cristal** ou **Meia-noite**. Muda na hora, sem reiniciar. |
 | **Quando o notch aparece** | *Sempre visível* ou *Escondido* (aparece ao passar o mouse na borda de cima ou ao falar com o Jarvis). |
 | **Em qual monitor** | Principal, um específico, ou *os dois* (vai para o monitor onde está o mouse). |
 | **Clima** | Digite sua cidade e **Salvar** — ele mostra o que vai aparecer. |
@@ -452,7 +461,7 @@ cargo test -p openjarvis       # Rust
 ### Prévia sem o app (no navegador)
 
 Com `npx vite` rodando, abra `http://localhost:1420/dev/notch-preview.html` — o notch inteiro com dados fictícios. Parâmetros úteis:
-`?open=agenda` (abre uma aba), `?open=whatsapp&wachat=Ana Souza` (uma conversa), `?widgets=1` / `?widgets=fps&game=1` (widgets), `?alert=1` (lembrete), `?net=off`.
+`?open=agenda` (abre uma aba), `?open=whatsapp&wachat=Ana Souza` (uma conversa), `?theme=glass` / `?theme=midnight` (visual), `?widgets=1` / `?widgets=fps&game=1` (widgets), `?alert=1` (lembrete), `?net=off`.
 
 As imagens deste README saem dela: `python scripts/readme_shots.py` (precisa de Chrome/Edge e `pip install pillow`).
 
@@ -464,6 +473,7 @@ src/                        front-end (TypeScript, sem framework)
   jarvis/notch_widgets.ts   clima, círculos do PC, FPS, ping
   jarvis/tool_tabs.ts       abas E-mail, WhatsApp, Arquivos, Notas, GitHub, áudio
   jarvis/voice.ts           voz: escuta, comando, resposta falada (sem markdown)
+  jarvis/glass.css          visuais Cristal e Meia-noite (sobre o Grafite, notch_v2.css)
   jarvis/agenda_panel.ts    Agenda (Semana/Mês/Ano)
   jarvis/music_panel.ts     Spotify
   mochi/                    o mascote (Canvas 2D), roupas e acabamentos
