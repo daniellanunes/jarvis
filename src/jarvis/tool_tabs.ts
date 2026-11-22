@@ -588,15 +588,19 @@ export function createToolTabs(ctx: ToolTabsCtx) {
       wa.loading = true;
       ctx.rerender();
     }
+    let same = false;
     try {
-      wa.chats = await Bridge.whatsappChats();
+      const next = await Bridge.whatsappChats();
+      // Nothing new: no redraw (it cost a frame and the scroll position).
+      same = quiet && JSON.stringify(next) === JSON.stringify(wa.chats) && !wa.error;
+      wa.chats = next;
       wa.error = "";
     } catch (e) {
       wa.error = String(e).replace(/^Error:\s*/, "");
     }
     wa.loading = false;
     wa.busy = false;
-    if (ctx.isOpen("whatsapp") && !wa.thread) ctx.rerender();
+    if (!same && ctx.isOpen("whatsapp") && !wa.thread) ctx.rerender();
   }
 
   async function waOpen(title: string, quiet = false) {
@@ -609,6 +613,8 @@ export function createToolTabs(ctx: ToolTabsCtx) {
       const t = await Bridge.whatsappThread(title);
       // Still on this chat (the user may have gone back meanwhile).
       if (quiet && wa.thread?.title !== title) return;
+      // Nothing new and the user may be typing: leave the page alone.
+      if (quiet && JSON.stringify(t) === JSON.stringify(wa.thread) && !wa.error) return;
       wa.thread = t;
       wa.error = "";
     } catch (e) {

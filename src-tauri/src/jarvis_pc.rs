@@ -96,6 +96,47 @@ pub fn pick_shortcut(list: &[(String, std::path::PathBuf)], q: &str) -> Option<s
         .map(|(_, p)| p.clone())
 }
 
+/// The code editor projects open in: Antigravity IDE (the user's choice),
+/// then the newer Antigravity, else VS Code. Returns the program and its name.
+pub fn code_editor() -> Option<(std::path::PathBuf, &'static str)> {
+    let local = std::env::var_os("LOCALAPPDATA").map(std::path::PathBuf::from).unwrap_or_default();
+    let ide = local.join(r"Programs\Antigravity IDE\Antigravity IDE.exe");
+    if ide.is_file() {
+        return Some((ide, "Antigravity IDE"));
+    }
+    if let Some(exe) = crate::platform::find_on_path("antigravity-ide") {
+        return Some((exe, "Antigravity IDE"));
+    }
+    let newer = local.join(r"Programs\Antigravity\Antigravity.exe");
+    if newer.is_file() {
+        return Some((newer, "Antigravity"));
+    }
+    if let Some(exe) = crate::platform::find_on_path("antigravity") {
+        return Some((exe, "Antigravity"));
+    }
+    let vscode = local.join(r"Programs\Microsoft VS Code\Code.exe");
+    if vscode.is_file() {
+        return Some((vscode, "VS Code"));
+    }
+    crate::platform::find_on_path("code").map(|exe| (exe, "VS Code"))
+}
+
+/// Opens a project folder in the code editor. The path goes as its own
+/// argument (no shell), so `&` or `%` in a folder name stay part of the name.
+pub fn open_in_editor(path: &str) -> Result<String, String> {
+    let dir = std::path::Path::new(path);
+    if !(dir.is_absolute() && dir.exists()) {
+        return Err(format!("Pasta não encontrada: {path}"));
+    }
+    let (exe, name) = code_editor().ok_or("Não encontrei o Antigravity nem o VS Code instalados.")?;
+    let mut cmd = Command::new(&exe);
+    cmd.arg(path);
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd.spawn().map_err(|e| format!("Erro ao abrir o {name}: {e}"))?;
+    Ok(format!("Abrindo no {name}: {path}"))
+}
+
 /// Opens a known Windows app, URL, or friendly alias (e.g. "spotify", "chrome", "youtube").
 #[tauri::command]
 pub fn jarvis_open_target(target: String) -> Result<String, String> {
@@ -148,17 +189,12 @@ pub fn jarvis_open_target(target: String) -> Result<String, String> {
         launch_shell(&uri)?;
         return Ok(format!("Buscando no Spotify: {tail}"));
     }
-    if let Some(p) = raw.strip_prefix("vscode:").or_else(|| raw.strip_prefix("VSCODE:")) {
-        let path = p.trim();
-        #[cfg(windows)]
-        {
-            Command::new("cmd")
-                .args(["/C", "code", path])
-                .creation_flags(CREATE_NO_WINDOW)
-                .spawn()
-                .map_err(|e| format!("Erro ao abrir VS Code: {e}"))?;
-        }
-        return Ok(format!("Abrindo no VS Code: {path}"));
+    // A project in the code editor (Antigravity when installed, else VS Code).
+    let editor_prefix = ["vscode:", "editor:", "antigravity:"].iter().find_map(|pre| {
+        raw.get(..pre.len()).filter(|h| h.eq_ignore_ascii_case(pre)).map(|_| &raw[pre.len()..])
+    });
+    if let Some(p) = editor_prefix {
+        return open_in_editor(p.trim());
     }
 
     // Friendly aliases -> executable / protocol / URL

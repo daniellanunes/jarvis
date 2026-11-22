@@ -426,6 +426,7 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
             gate.wait_until_active();
             let mut last = (f64::MIN, f64::MIN);
             let mut ticks: u32 = 0;
+            let mut last_emit = std::time::Instant::now();
             while gate.is_active() {
                 std::thread::sleep(Duration::from_millis(period));
 
@@ -503,7 +504,14 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
                     let _ = win.set_ignore_cursor_events(!accept);
                 }
 
-                let _ = win.emit("cursor", CursorPayload { x, y });
+                // The page only needs the cursor for the pill (hidden mode), not
+                // with the panel open; and ~30 Hz is plenty. Each event runs a
+                // script in the window: at 120 Hz it made scrolling stutter.
+                let panel_open = !gate.collapsed.load(Ordering::Relaxed) && r.h > 120.0;
+                if !panel_open && last_emit.elapsed() >= Duration::from_millis(33) {
+                    last_emit = std::time::Instant::now();
+                    let _ = win.emit("cursor", CursorPayload { x, y });
+                }
             }
         }
     });

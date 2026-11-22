@@ -69,6 +69,9 @@ export const Bridge = {
 
   /** "Open terminal" → opens the folder in VS Code when `code` is on PATH. */
   openInVSCode: (path: string | null) => call<boolean>("open_in_vscode", { path }),
+  /** A project in the code editor (Antigravity, else VS Code). */
+  openProject: (path: string) => callOrThrow<string>("open_project", { path }),
+  codeEditorName: () => call<string>("code_editor_name"),
 
   /**
    * "Open terminal": the window the session runs in when Rust found it

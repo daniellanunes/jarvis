@@ -1544,7 +1544,7 @@ fn gemini_tool_declarations() -> serde_json::Value {
             },
             {
                 "name": "open_target",
-                "description": "Abre um aplicativo, site ou busca no Windows (ex: 'spotify', 'chrome', 'vscode', 'terminal', 'explorer', 'calc', 'notepad', 'whatsapp', 'discord', 'settings', 'https://...', 'youtube:termo', 'google:termo', 'vscode:D:\\Projetos\\nome').",
+                "description": "Abre um aplicativo, site ou busca no Windows (ex: 'spotify', 'chrome', 'vscode', 'terminal', 'explorer', 'calc', 'notepad', 'whatsapp', 'discord', 'settings', 'https://...', 'youtube:termo', 'google:termo', 'editor:D:\\Projetos\\nome' para abrir um projeto no editor de código do usuário (Antigravity IDE)).",
                 "parameters": {
                     "type": "OBJECT",
                     "properties": {

@@ -229,6 +229,19 @@ fn open_url(url: String) {
     platform::open_url(&url);
 }
 
+/// A project folder in the code editor (Antigravity, else VS Code). Returns the
+/// editor's name, for the button.
+#[tauri::command]
+fn open_project(path: String) -> Result<String, String> {
+    jarvis_pc::open_in_editor(&path)
+}
+
+/// The editor projects open in ("Antigravity" / "VS Code"), for the button label.
+#[tauri::command]
+fn code_editor_name() -> String {
+    jarvis_pc::code_editor().map(|(_, n)| n.to_string()).unwrap_or_else(|| "VS Code".into())
+}
+
 /// "Open terminal" opens the working folder in VS Code when `code` is on PATH,
 /// and falls back to the file manager otherwise.
 #[tauri::command]
@@ -904,6 +917,8 @@ pub fn run() {
             routines::jarvis_run_routine,
             jarvis_tools::jarvis_briefing,
             jarvis_tools::jarvis_github_overview,
+            open_project,
+            code_editor_name,
             whatsapp::whatsapp_state,
             whatsapp::whatsapp_chats,
             whatsapp::whatsapp_thread,

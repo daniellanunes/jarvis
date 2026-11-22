@@ -372,6 +372,15 @@ export async function startJarvisNotch(root: HTMLElement) {
   /** A voice command heard while the previous request was still running. */
   let queuedVoice: { text: string; screen: boolean } | null = null;
 
+  /** The code editor projects open in (Antigravity when installed). */
+  let editorName = "Antigravity IDE";
+  void Bridge.codeEditorName().then((n) => {
+    if (n && n !== editorName) {
+      editorName = n;
+      render();
+    }
+  });
+
   /** Jarvis asked a question out loud: listen for the answer, no "Jarvis" needed.
    *  Quiet for ~6 s and it gives up on its own. */
   function listenForAnswer() {
@@ -1011,7 +1020,7 @@ export async function startJarvisNotch(root: HTMLElement) {
           svgIcon(ICONS.projects, 13),
           h("span", { class: "list-text", text: proj.label }),
           pPath
-            ? h("button", { class: "link-btn quiet", text: "Abrir no VS Code", onclick: () => void Bridge.openInVSCode(pPath) })
+            ? h("button", { class: "link-btn quiet", text: `Abrir no ${editorName}`, onclick: () => void Bridge.openProject(pPath).catch((e) => showToast(String(e).replace(/^Error:\s*/, ""))) })
             : "",
         ),
       );
@@ -1322,8 +1331,8 @@ export async function startJarvisNotch(root: HTMLElement) {
               ? h("button", {
                   class: "btn btn-ghost btn-sm",
                   style: "align-self:flex-start",
-                  text: "Abrir no VS Code",
-                  onclick: () => void Bridge.openInVSCode(projectPath),
+                  text: `Abrir no ${editorName}`,
+                  onclick: () => void Bridge.openProject(projectPath).catch((e) => showToast(String(e).replace(/^Error:\s*/, ""))),
                 })
               : "",
           ),
@@ -1373,8 +1382,8 @@ export async function startJarvisNotch(root: HTMLElement) {
             ? h("button", {
                 class: "btn btn-sm",
                 style: "flex:1",
-                text: "Abrir VS Code",
-                onclick: () => void Bridge.openInVSCode(projectPath),
+                text: `Abrir no ${editorName}`,
+                onclick: () => void Bridge.openProject(projectPath).catch((e) => showToast(String(e).replace(/^Error:\s*/, ""))),
               })
             : "",
           selectedMemory.category !== "user"
@@ -1916,7 +1925,7 @@ export async function startJarvisNotch(root: HTMLElement) {
     const quickApps: [string, string][] = [
       ["Spotify", "spotify"],
       ["Chrome", "chrome"],
-      ["VS Code", "vscode"],
+      [editorName, editorName === "VS Code" ? "vscode" : editorName.toLowerCase()],
       ["Terminal", "terminal"],
       ["Explorador", "explorer"],
       ["Calculadora", "calc"],
@@ -3195,8 +3204,8 @@ export async function startJarvisNotch(root: HTMLElement) {
   function render() {
     cleanupGraph?.();
     cleanupGraph = null;
-    // Ajustes re-renders on every switch: stay where the user was.
-    const view = expanded && activeTab === "settings" ? `settings/${settingsSubTab}` : "";
+    // A redraw of the same page keeps its scroll (it used to jump to the top).
+    const view = expanded ? `${activeTab}/${activeTab === "settings" ? settingsSubTab : ""}` : "";
     const keepScroll = view && view === lastView ? (root.querySelector<HTMLElement>(".main")?.scrollTop ?? 0) : 0;
     lastView = view;
     if (keepScroll) {
@@ -3787,8 +3796,14 @@ export async function startJarvisNotch(root: HTMLElement) {
   };
   Voice.syncWakeWord();
 
+  // The mascot at ~30 fps, and not at all while the window is hidden: at 60 fps
+  // every frame recomposed the whole (transparent, always-on-top) window.
   let lastFrame = performance.now();
   function animLoop(now: number) {
+    if (document.hidden || now - lastFrame < 32) {
+      requestAnimationFrame(animLoop);
+      return;
+    }
     const dt = Math.min(0.05, (now - lastFrame) / 1000);
     lastFrame = now;
     const fin = data.mochiFinish as BodyFinish;

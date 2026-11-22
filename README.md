@@ -328,6 +328,7 @@ Diga **“Jarvis”** e o pedido, clique no notch e digite, ou use **Ctrl+Alt+Es
 | “O que tenho amanhã?” / “marca dentista sexta às 10h e me avisa 1 hora antes” | Agenda com notificação |
 | “Tenho e-mail novo?” / “resume o e-mail da Ana” / “responde dizendo que confirmo” | Gmail (rascunho; envio só com Permitir) |
 | “Acha o PDF do contrato de março” | Busca nos seus arquivos e abre |
+| “Abre o projeto aluga” | Abre a pasta do projeto no **Antigravity IDE** (ou no VS Code, se não tiver) |
 | “Anota no projeto jarvis que preciso revisar o login” | Escreve no Obsidian |
 | “Abre o YouTube e procura lo-fi” | Navegador do Jarvis abre, busca e clica |
 | “O que tem na minha tela?” | Lê a tela e explica |

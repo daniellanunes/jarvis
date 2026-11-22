@@ -982,3 +982,28 @@
   text-align: right;
   margin-top: 2px;
 }
+
+/* ── Smooth scrolling ─────────────────────────────────────────────────────────
+   On a 100%-scale screen, Chromium (WebView2) only scrolls an area on the GPU
+   when it has an opaque background or a scroll hint; otherwise every wheel step
+   repaints the whole area on the main thread — the "second scroll stalls" in
+   the panel. The main area gets the panel's own colour (no visual change) and
+   every scroll area the hint. */
+.main {
+  background-color: var(--bg);
+}
+.main,
+.mini-chat-scroll,
+.chat-messages,
+.project-grid,
+.mascot-groups,
+.wa-thread,
+.mp-side,
+.mp-list,
+.ag-list,
+.ag-year,
+.sp-lib-list,
+.sp-view {
+  will-change: scroll-position;
+  overscroll-behavior: contain;
+}
