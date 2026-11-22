@@ -116,7 +116,7 @@ def main() -> None:
         ("settings-ai", "open=settings&scroll=Trocar de IA automaticamente"),
         ("settings-notch", "open=settings&sub=Notch&scroll=Informações no notch"),
         ("settings-voice", "open=settings&enrolled=1&scroll=Reconhecimento da sua voz"),
-        ("settings-folders", "open=settings&scroll=end"),
+        ("settings-folders", "open=settings&scroll=Editor de código dos projetos"),
     ]
     imgs = {n: raw(q, 3800) for n, q in tabs}
     box = content_box(imgs["panel-home"], 24)

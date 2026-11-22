@@ -96,29 +96,95 @@ pub fn pick_shortcut(list: &[(String, std::path::PathBuf)], q: &str) -> Option<s
         .map(|(_, p)| p.clone())
 }
 
-/// The code editor projects open in: Antigravity IDE (the user's choice),
-/// then the newer Antigravity, else VS Code. Returns the program and its name.
-pub fn code_editor() -> Option<(std::path::PathBuf, &'static str)> {
-    let local = std::env::var_os("LOCALAPPDATA").map(std::path::PathBuf::from).unwrap_or_default();
-    let ide = local.join(r"Programs\Antigravity IDE\Antigravity IDE.exe");
-    if ide.is_file() {
-        return Some((ide, "Antigravity IDE"));
+/// A code editor found on the PC.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditorInfo {
+    pub name: String,
+    /// The program; also what Ajustes saves as the choice.
+    pub path: String,
+}
+
+/// The code editors installed on this PC, in the order the automatic choice
+/// prefers them. Looks in the usual install folders and on PATH.
+pub fn installed_editors() -> Vec<EditorInfo> {
+    use std::path::PathBuf;
+    let env = |k: &str| std::env::var_os(k).map(PathBuf::from);
+    let local = env("LOCALAPPDATA").unwrap_or_default();
+    let pf = env("ProgramFiles").unwrap_or_else(|| PathBuf::from(r"C:\Program Files"));
+    let pf86 = env("ProgramFiles(x86)").unwrap_or_else(|| PathBuf::from(r"C:\Program Files (x86)"));
+
+    // (name, install paths, command on PATH)
+    let known: Vec<(&str, Vec<PathBuf>, &str)> = vec![
+        ("Antigravity IDE", vec![local.join(r"Programs\Antigravity IDE\Antigravity IDE.exe")], "antigravity-ide"),
+        ("Antigravity", vec![local.join(r"Programs\Antigravity\Antigravity.exe")], "antigravity"),
+        ("Cursor", vec![local.join(r"Programs\cursor\Cursor.exe"), pf.join(r"Cursor\Cursor.exe")], "cursor"),
+        ("Windsurf", vec![local.join(r"Programs\Windsurf\Windsurf.exe"), pf.join(r"Windsurf\Windsurf.exe")], "windsurf"),
+        ("VS Code", vec![local.join(r"Programs\Microsoft VS Code\Code.exe"), pf.join(r"Microsoft VS Code\Code.exe")], "code"),
+        (
+            "VS Code Insiders",
+            vec![local.join(r"Programs\Microsoft VS Code Insiders\Code - Insiders.exe"), pf.join(r"Microsoft VS Code Insiders\Code - Insiders.exe")],
+            "code-insiders",
+        ),
+        ("Zed", vec![local.join(r"Programs\Zed\Zed.exe"), pf.join(r"Zed\Zed.exe")], "zed"),
+        ("Sublime Text", vec![pf.join(r"Sublime Text\sublime_text.exe"), pf.join(r"Sublime Text 3\sublime_text.exe")], "subl"),
+    ];
+    let mut out: Vec<EditorInfo> = Vec::new();
+    let push = |name: String, exe: PathBuf, out: &mut Vec<EditorInfo>| {
+        let path = exe.to_string_lossy().to_string();
+        if !out.iter().any(|e| e.path.eq_ignore_ascii_case(&path) || e.name == name) {
+            out.push(EditorInfo { name, path });
+        }
+    };
+    for (name, paths, cmd) in known {
+        if let Some(exe) = paths.into_iter().find(|p| p.is_file()).or_else(|| crate::platform::find_on_path(cmd)) {
+            push(name.to_string(), exe, &mut out);
+        }
     }
-    if let Some(exe) = crate::platform::find_on_path("antigravity-ide") {
-        return Some((exe, "Antigravity IDE"));
+
+    // Visual Studio: <Program Files>\Microsoft Visual Studio\<versão>\<edição>\Common7\IDE\devenv.exe
+    for root in [pf.join("Microsoft Visual Studio"), pf86.join("Microsoft Visual Studio")] {
+        for version in std::fs::read_dir(&root).into_iter().flatten().flatten() {
+            for edition in std::fs::read_dir(version.path()).into_iter().flatten().flatten() {
+                let exe = edition.path().join(r"Common7\IDE\devenv.exe");
+                if exe.is_file() {
+                    let name = format!("Visual Studio {} {}", version.file_name().to_string_lossy(), edition.file_name().to_string_lossy());
+                    push(name, exe, &mut out);
+                }
+            }
+        }
     }
-    let newer = local.join(r"Programs\Antigravity\Antigravity.exe");
-    if newer.is_file() {
-        return Some((newer, "Antigravity"));
+
+    // JetBrains (IntelliJ, WebStorm, PyCharm, Rider…): <dir>\bin\<ide>64.exe,
+    // installed directly or by the Toolbox.
+    let mut jet_dirs: Vec<PathBuf> = std::fs::read_dir(pf.join("JetBrains")).into_iter().flatten().flatten().map(|d| d.path()).collect();
+    for app in std::fs::read_dir(local.join(r"Programs")).into_iter().flatten().flatten() {
+        if app.path().join("bin").is_dir() && app.path().join("product-info.json").is_file() {
+            jet_dirs.push(app.path());
+        }
     }
-    if let Some(exe) = crate::platform::find_on_path("antigravity") {
-        return Some((exe, "Antigravity"));
+    for dir in jet_dirs {
+        let Some(exe) = std::fs::read_dir(dir.join("bin")).into_iter().flatten().flatten().map(|f| f.path()).find(|p| {
+            let n = p.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+            n.ends_with("64.exe") && !n.starts_with("fsnotifier") && !n.starts_with("elevator") && !n.starts_with("restarter")
+        }) else {
+            continue;
+        };
+        push(dir.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "JetBrains".into()), exe, &mut out);
     }
-    let vscode = local.join(r"Programs\Microsoft VS Code\Code.exe");
-    if vscode.is_file() {
-        return Some((vscode, "VS Code"));
-    }
-    crate::platform::find_on_path("code").map(|exe| (exe, "VS Code"))
+    out
+}
+
+/// The editor projects open in: the one chosen in Ajustes (if it is still
+/// installed), else the first one found. Returns the program and its name.
+pub fn code_editor() -> Option<(std::path::PathBuf, String)> {
+    let chosen = crate::settings::load().jarvis_code_editor;
+    let all = installed_editors();
+    let pick = all
+        .iter()
+        .find(|e| !chosen.is_empty() && e.path.eq_ignore_ascii_case(&chosen))
+        .or_else(|| all.first())?;
+    Some((std::path::PathBuf::from(&pick.path), pick.name.clone()))
 }
 
 /// Opens a project folder in the code editor. The path goes as its own
@@ -128,7 +194,7 @@ pub fn open_in_editor(path: &str) -> Result<String, String> {
     if !(dir.is_absolute() && dir.exists()) {
         return Err(format!("Pasta não encontrada: {path}"));
     }
-    let (exe, name) = code_editor().ok_or("Não encontrei o Antigravity nem o VS Code instalados.")?;
+    let (exe, name) = code_editor().ok_or("Não encontrei nenhum editor de código instalado (Antigravity, VS Code, Cursor…).")?;
     let mut cmd = Command::new(&exe);
     cmd.arg(path);
     #[cfg(windows)]
@@ -1038,5 +1104,17 @@ mod tests {
         assert_eq!(pick("FiveM").as_deref(), Some("fivem.lnk"));
         assert_eq!(pick("visual studio").as_deref(), Some("visual studio code.lnk"));
         assert_eq!(pick("xyz"), None);
+    }
+}
+
+#[cfg(test)]
+mod editor_probe {
+    /// What this PC has (`cargo test editors_on_this_pc -- --ignored --nocapture`).
+    #[test]
+    #[ignore]
+    fn editors_on_this_pc() {
+        for e in super::installed_editors() {
+            println!("{} -> {}", e.name, e.path);
+        }
     }
 }

@@ -72,6 +72,7 @@ export const Bridge = {
   /** A project in the code editor (Antigravity, else VS Code). */
   openProject: (path: string) => callOrThrow<string>("open_project", { path }),
   codeEditorName: () => call<string>("code_editor_name"),
+  listCodeEditors: () => call<{ name: string; path: string }[]>("list_code_editors"),
 
   /**
    * "Open terminal": the window the session runs in when Rust found it

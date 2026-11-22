@@ -213,6 +213,9 @@ Pode falar no seu ritmo: uma pausa para respirar (até ~2 s) não encerra o pedi
 |---|---|---|
 | Vault do Obsidian | Aba **Notas** e memória do Jarvis | `Documentos\Obsidian Vault\Memoria-Unificada` |
 | Pasta de projetos | Aba **Projetos** e busca de arquivos | `D:\Projetos` se existir, senão `Usuário\Projetos` |
+| Editor de código dos projetos | Onde **“Abrir no…”** e o pedido *“abre o projeto X”* abrem a pasta | O primeiro editor encontrado |
+
+**Editor de código:** o Jarvis procura os editores instalados no PC e mostra só eles na lista — Antigravity IDE, Antigravity, Cursor, Windsurf, VS Code (e Insiders), Zed, Sublime Text, Visual Studio e os da JetBrains (IntelliJ, WebStorm, PyCharm, Rider…). Escolha um e os projetos passam a abrir nele; se ele for desinstalado, volta para o automático.
 
 ### 4. Google Agenda e Gmail
 
@@ -328,7 +331,7 @@ Diga **“Jarvis”** e o pedido, clique no notch e digite, ou use **Ctrl+Alt+Es
 | “O que tenho amanhã?” / “marca dentista sexta às 10h e me avisa 1 hora antes” | Agenda com notificação |
 | “Tenho e-mail novo?” / “resume o e-mail da Ana” / “responde dizendo que confirmo” | Gmail (rascunho; envio só com Permitir) |
 | “Acha o PDF do contrato de março” | Busca nos seus arquivos e abre |
-| “Abre o projeto aluga” | Abre a pasta do projeto no **Antigravity IDE** (ou no VS Code, se não tiver) |
+| “Abre o projeto aluga” | Abre a pasta do projeto no **editor que você escolheu** em Ajustes |
 | “Anota no projeto jarvis que preciso revisar o login” | Escreve no Obsidian |
 | “Abre o YouTube e procura lo-fi” | Navegador do Jarvis abre, busca e clica |
 | “O que tem na minha tela?” | Lê a tela e explica |
@@ -390,6 +393,7 @@ Exemplo — **Modo jogo**: gatilho `app:valorant`, passos `close:chrome, saida:f
 | WhatsApp: o QR code não aparece | Espere alguns segundos com a aba aberta (ele carrega o WhatsApp Web escondido). Se demorar, feche e abra o Jarvis. |
 | WhatsApp pede o QR code de novo | Acontece ao reinstalar ou se o aparelho foi removido no celular. Escaneie de novo e apague os aparelhos antigos em *Aparelhos conectados*. |
 | WhatsApp: “não achei o contato” | Diga o nome como está salvo no celular (ou o número com DDD). Ele mostra os nomes parecidos que encontrou. |
+| “Abrir no…” abre o editor errado / meu editor não aparece | Ajustes → IA & Voz → **Pastas e integrações** → *Editor de código dos projetos*. Se o seu não está na lista, instale-o no local padrão ou deixe o comando dele no PATH e reabra o Jarvis. |
 | Sem temperatura nos círculos | Abra o LibreHardwareMonitor. |
 | Notch some em um jogo | Use *Janela sem bordas* no jogo, ou deixe ligado *Jogo em tela cheia → outro monitor*. |
 

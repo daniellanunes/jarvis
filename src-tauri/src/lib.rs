@@ -236,10 +236,16 @@ fn open_project(path: String) -> Result<String, String> {
     jarvis_pc::open_in_editor(&path)
 }
 
-/// The editor projects open in ("Antigravity" / "VS Code"), for the button label.
+/// The editor projects open in ("Antigravity IDE", "VS Code"…), for the button label.
 #[tauri::command]
 fn code_editor_name() -> String {
-    jarvis_pc::code_editor().map(|(_, n)| n.to_string()).unwrap_or_else(|| "VS Code".into())
+    jarvis_pc::code_editor().map(|(_, n)| n).unwrap_or_else(|| "editor".into())
+}
+
+/// The code editors installed on this PC, for the choice in Ajustes.
+#[tauri::command]
+fn list_code_editors() -> Vec<jarvis_pc::EditorInfo> {
+    jarvis_pc::installed_editors()
 }
 
 /// "Open terminal" opens the working folder in VS Code when `code` is on PATH,
@@ -919,6 +925,7 @@ pub fn run() {
             jarvis_tools::jarvis_github_overview,
             open_project,
             code_editor_name,
+            list_code_editors,
             whatsapp::whatsapp_state,
             whatsapp::whatsapp_chats,
             whatsapp::whatsapp_thread,

@@ -194,6 +194,8 @@ export interface Settings {
   jarvisMicName?: string;
   /** Words the transcription should know (names, games, apps), comma separated. */
   jarvisVoiceVocab?: string;
+  /** The program projects open in ("" = the first editor found). */
+  jarvisCodeEditor?: string;
   /** "local": the enrolled "Jarvis" spotted on the PC; "cloud": transcribed sentences. */
   jarvisWakeEngine?: "local" | "cloud";
   /** Local wake word: 0.35 (easier) – 0.7 (stricter). */
@@ -250,6 +252,7 @@ export const DEFAULT_SETTINGS: Settings = {
   jarvisMicSensitivity: "alta",
   jarvisMicName: "",
   jarvisVoiceVocab: "",
+  jarvisCodeEditor: "",
   jarvisWakeEngine: "local",
   jarvisWakeThreshold: 0.45,
 };

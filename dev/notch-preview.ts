@@ -99,6 +99,13 @@ const answers: Record<string, (args: any) => unknown> = {
     calEvents = calEvents.filter((e) => e.key !== key);
     return null;
   },
+  // Code editors found on the PC.
+  list_code_editors: () => [
+    { name: "Antigravity IDE", path: "C:\\Users\\voce\\AppData\\Local\\Programs\\Antigravity IDE\\Antigravity IDE.exe" },
+    { name: "VS Code", path: "C:\\Users\\voce\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe" },
+    { name: "Cursor", path: "C:\\Users\\voce\\AppData\\Local\\Programs\\cursor\\Cursor.exe" },
+  ],
+  code_editor_name: () => "Antigravity IDE",
   // WhatsApp (fictional chats).
   whatsapp_state: () => ({ state: "ready", qr: null }),
   whatsapp_chats: () => [

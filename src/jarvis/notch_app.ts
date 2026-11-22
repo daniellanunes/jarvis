@@ -373,7 +373,7 @@ export async function startJarvisNotch(root: HTMLElement) {
   let queuedVoice: { text: string; screen: boolean } | null = null;
 
   /** The code editor projects open in (Antigravity when installed). */
-  let editorName = "Antigravity IDE";
+  let editorName = "editor";
   void Bridge.codeEditorName().then((n) => {
     if (n && n !== editorName) {
       editorName = n;
@@ -2373,6 +2373,47 @@ export async function startJarvisNotch(root: HTMLElement) {
     );
   }
 
+  /** The code editor projects open in, among the ones found on this PC. */
+  let editorsFound: { name: string; path: string }[] | null = null;
+  function renderEditorPicker(): HTMLElement {
+    const select = h("select", { class: "input", style: "width:100%;height:34px;color-scheme:dark" }) as HTMLSelectElement;
+    const status = h("span", { class: "tt-row-meta" });
+    const fill = (list: { name: string; path: string }[]) => {
+      select.replaceChildren();
+      const auto = list[0]?.name;
+      select.append(h("option", { value: "", text: auto ? `Automático (${auto})` : "Nenhum editor encontrado" }) as HTMLOptionElement);
+      for (const e of list) select.append(h("option", { value: e.path, text: e.name, title: e.path }) as HTMLOptionElement);
+      const saved = State.settings.jarvisCodeEditor ?? "";
+      // A saved editor that was uninstalled falls back to automatic.
+      select.value = list.some((e) => e.path.toLowerCase() === saved.toLowerCase()) ? list.find((e) => e.path.toLowerCase() === saved.toLowerCase())!.path : "";
+    };
+    if (editorsFound) fill(editorsFound);
+    else {
+      select.append(h("option", { value: "", text: "Procurando editores instalados…" }) as HTMLOptionElement);
+      void Bridge.listCodeEditors().then((list) => {
+        editorsFound = list ?? [];
+        fill(editorsFound);
+      });
+    }
+    select.addEventListener("change", async () => {
+      await saveSettings({ ...State.settings, jarvisCodeEditor: select.value });
+      editorName = (await Bridge.codeEditorName()) || editorName;
+      status.textContent = `Projetos abrem no ${editorName}`;
+    });
+    return h(
+      "div",
+      { class: "tt-card", style: "margin-bottom:8px" },
+      h("div", { class: "tt-card-title", text: "Editor de código dos projetos" }),
+      select,
+      h(
+        "div",
+        { class: "tt-volume", style: "margin-top:6px" },
+        h("span", { class: "tt-hint", style: "margin:0", text: "Usado em \"Abrir no…\" dos projetos e quando você pede \"abre o projeto X\". A lista mostra só os editores instalados neste PC." }),
+        status,
+      ),
+    );
+  }
+
   /** Obsidian, projects folder and the OpenBot webhook (empty = automatic). */
   function renderFolderSettings(): HTMLElement {
     type Field = "jarvisObsidianVault" | "jarvisProjectsDir" | "jarvisOpenbotWebhookUrl";
@@ -3193,6 +3234,7 @@ export async function startJarvisNotch(root: HTMLElement) {
       sectionHead("Microfone"),
       renderMicSettings(),
       sectionHead("Pastas e integrações"),
+      renderEditorPicker(),
       renderFolderSettings(),
       sectionHead("Sobre"),
       renderAboutUpdates(),
