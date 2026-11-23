@@ -1,0 +1,79 @@
+# Linux installers (.deb and .AppImage), built on GitHub's Ubuntu machines —
+# Tauri cannot cross-compile them from Windows.
+#
+# - Run by hand: Actions → Linux → Run workflow (the files are in the run's
+#   "jarvis-linux" artifact).
+# - On every published release: the .deb and .AppImage are attached to it,
+#   next to the Windows installer.
+name: Linux
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/linux.yml"
+      - "src-tauri/tauri.linux.conf.json"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    # 22.04: an older glibc, so the AppImage also runs on older distros.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential pkg-config file patchelf \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev libssl-dev libxdo-dev \
+            libgtk-layer-shell-dev libasound2-dev libdbus-1-dev
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Front-end dependencies
+        run: npm ci
+
+      - name: Build the installers
+        env:
+          # The updater signature for Linux needs the key as a repository
+          # secret; without it the installers are built unsigned for updates.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            npx tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
+          else
+            npx tauri build
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-linux
+          path: |
+            target/release/bundle/deb/*.deb
+            target/release/bundle/appimage/*.AppImage
+            target/release/bundle/rpm/*.rpm
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            target/release/bundle/deb/*.deb
+            target/release/bundle/appimage/*.AppImage
+            target/release/bundle/rpm/*.rpm
