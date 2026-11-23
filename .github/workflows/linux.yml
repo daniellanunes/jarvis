@@ -54,11 +54,27 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         run: |
+          set -o pipefail
           if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-            npx tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
+            npx tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}' 2>&1 | tee build.log
           else
-            npx tauri build
+            npx tauri build 2>&1 | tee build.log
           fi
+
+      # The run log is only visible to the repository's admins; the errors go
+      # out as annotations too, which anyone can read on the run page.
+      - name: Report build errors
+        if: failure()
+        run: |
+          [ -f build.log ] || exit 0
+          sed 's/\x1b\[[0-9;]*m//g' build.log > clean.log
+          grep -n -E -A12 '^(error|Error|ERROR)|error\[E[0-9]+\]|failed to|Failed to|panicked|could not' clean.log | head -c 60000 > errors.txt || true
+          [ -s errors.txt ] || tail -c 20000 clean.log > errors.txt
+          split -b 7000 errors.txt part_
+          for f in part_*; do
+            msg=$(sed -e 's/%/%25/g' "$f" | sed -e ':a;N;$!ba;s/\r//g;s/\n/%0A/g')
+            echo "::error title=Build Linux ($f)::$msg"
+          done
 
       - uses: actions/upload-artifact@v4
         with:
