@@ -68,9 +68,13 @@ jobs:
         run: |
           [ -f build.log ] || exit 0
           sed 's/\x1b\[[0-9;]*m//g' build.log > clean.log
-          grep -n -E -A12 '^(error|Error|ERROR)|error\[E[0-9]+\]|failed to|Failed to|panicked|could not' clean.log | head -c 60000 > errors.txt || true
-          [ -s errors.txt ] || tail -c 20000 clean.log > errors.txt
-          split -b 7000 errors.txt part_
+          # One line per Rust error: "file:line | message" (annotations are cut at ~4 KB).
+          grep -E -A1 '^error' clean.log | grep -E '^error|^ *-->' | paste -d' ' - - \
+            | sed -E 's/^(error[^:]*: .*) +--> +(.*)$/\2 | \1/' | sort -u > errors.txt || true
+          # Anything else (npm, bundling): the last lines of the log.
+          grep -E -B2 -A6 'Error|failed|panicked' clean.log | grep -v '^error' | tail -c 3000 >> errors.txt || true
+          [ -s errors.txt ] || tail -c 3500 clean.log > errors.txt
+          split -b 3500 errors.txt part_
           for f in part_*; do
             msg=$(sed -e 's/%/%25/g' "$f" | sed -e ':a;N;$!ba;s/\r//g;s/\n/%0A/g')
             echo "::error title=Build Linux ($f)::$msg"
