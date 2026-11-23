@@ -16,19 +16,15 @@
       },
       "deb": {
         "depends": [
-          "libgtk-layer-shell0 (>= 0.6)",
-          "libasound2"
+          "libgtk-layer-shell0 (>= 0.6)"
         ]
       },
       "rpm": {
         "depends": [
-          "gtk-layer-shell",
-          "alsa-lib"
+          "gtk-layer-shell"
         ]
       }
-    },
-    "shortDescription": "Assistente com IA no topo da tela",
-    "longDescription": "Jarvis é um assistente pessoal com IA que vive num notch no topo da tela: entende voz e texto, toca música no Spotify, cuida da agenda, lê e-mails quando você pede, acha arquivos e mostra clima e uso do PC."
+    }
   },
   "app": {
     "windows": [

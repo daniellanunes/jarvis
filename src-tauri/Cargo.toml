@@ -37,13 +37,6 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 
-# Local wake word (wakeword.rs, every OS: ALSA/PulseAudio on Linux): the microphone read natively, and the user's
-# own "Jarvis" spotted on the PC — no cloud call until a command is heard.
-cpal = "0.15"
-rustpotter = "3"
-# Rustpotter's candle 0.2 does not build with half ≥ 2.5 (rand 0.9): keep 2.4.
-half = "=2.4.1"
-
 [target.'cfg(windows)'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }
 # The island's file drop reads paths straight from WebView2 (webview_drop.rs).
@@ -87,6 +80,12 @@ windows = { version = "0.61", features = [
   "Foundation",
   "Foundation_Collections",
 ] }
+# Local wake word (wakeword.rs): the microphone read natively, and the user's
+# own "Jarvis" spotted on the PC — no cloud call until a command is heard.
+cpal = "0.15"
+rustpotter = "3"
+# Rustpotter's candle 0.2 does not build with half ≥ 2.5 (rand 0.9): keep 2.4.
+half = "=2.4.1"
 # FPS in games (pc_monitor.rs): counts the frames each process presents, from
 # the DXGI / Direct3D 9 ETW providers — the way PresentMon does. Needs admin.
 ferrisetw = "1"
