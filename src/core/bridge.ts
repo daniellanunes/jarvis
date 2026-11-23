@@ -275,6 +275,8 @@ export const Bridge = {
   jarvisTranscribe: (audioBase64: string, mimeType: string) =>
     callOrThrow<string>("jarvis_transcribe", { audioBase64, mimeType }),
   jarvisTts: (text: string) => callOrThrow<string>("jarvis_tts", { text }),
+  /** The neural voices offered in Ajustes (edge_tts.rs). */
+  ttsVoices: () => call<{ id: string; label: string }[]>("tts_voices"),
   jarvisOpenTarget: (target: string) => callOrThrow<string>("jarvis_open_target", { target }),
   jarvisMediaControl: (action: string) => callOrThrow<string>("jarvis_media_control", { action }),
   jarvisCaptureScreen: () => callOrThrow<string>("jarvis_capture_screen"),
@@ -322,8 +324,22 @@ export const Bridge = {
   wakewordStatus: () => call<WakeStatus>("wakeword_status"),
   // ── WhatsApp inside Jarvis (whatsapp.rs) ─────────────────────────────────
   whatsappState: () => callOrThrow<WaState>("whatsapp_state"),
-  whatsappChats: () => callOrThrow<WaChat[]>("whatsapp_chats"),
-  whatsappThread: (chat: string) => callOrThrow<WaThread>("whatsapp_thread", { chat }),
+  /** The first `limit` chats (WhatsApp's list is scrolled to reach them). */
+  whatsappChats: (limit?: number, filter?: string) => callOrThrow<{ chats: WaChat[]; more: boolean }>("whatsapp_chats", { limit, filter }),
+  /** Chats and contacts matching a search (WhatsApp's own). */
+  whatsappSearch: (query: string) => callOrThrow<WaChat[]>("whatsapp_search", { query }),
+  /** Plays / pauses a voice note on the PC's speakers: "playing" | "paused". */
+  whatsappPlay: (chat: string, id: string) => callOrThrow<string>("whatsapp_play", { chat, id }),
+  /** An image of the chat as a data: URL. */
+  whatsappImage: (chat: string, id: string) => callOrThrow<string>("whatsapp_image", { chat, id }),
+  /** Saves it in Downloads\WhatsApp (Jarvis); returns the path. */
+  whatsappSaveImage: (dataUrl: string, name: string) => callOrThrow<string>("whatsapp_save_image", { dataUrl, name }),
+  /** Voice note with WhatsApp's recorder: "start" | "send" | "cancel". */
+  whatsappVoice: (chat: string, action: "start" | "send" | "cancel") => callOrThrow<string>("whatsapp_voice", { chat, action }),
+  /** A chat's last `count` messages (more than 30 loads older ones). */
+  whatsappThread: (chat: string, count?: number) => callOrThrow<WaThread>("whatsapp_thread", { chat, count }),
+  /** Calls the chat from WhatsApp Web; its window comes up for the call. */
+  whatsappCall: (chat: string, video: boolean) => callOrThrow<string>("whatsapp_call", { chat, video }),
   whatsappSend: (chat: string, text: string) => callOrThrow<string>("whatsapp_send", { chat, text }),
   wakewordRecordSample: (index: number) => callOrThrow<number>("wakeword_record_sample", { index }),
   wakewordBuild: () => callOrThrow<WakeStatus>("wakeword_build"),
@@ -336,6 +352,10 @@ export const Bridge = {
   updateCheck: () => callOrThrow<UpdateInfo>("update_check"),
   updateInstall: () => callOrThrow<void>("update_install"),
   onUpdateAvailable: (fn: (u: UpdateInfo) => void) => onEvent<UpdateInfo>("update-available", fn),
+  /** A WhatsApp call started, rings in, ticks or ended (whatsapp.rs). */
+  onWhatsappCall: (fn: (c: WaCall) => void) => onEvent<WaCall>("whatsapp-call", fn),
+  /** Presses a call button: "hangup" | "mute" | "camera" | "accept" | "decline" | "show". */
+  whatsappCallAction: (action: string) => callOrThrow<WaCall>("whatsapp_call_action", { action }),
   onUpdateProgress: (fn: (p: { downloaded: number; total: number; phase: "downloading" | "installing" }) => void) =>
     onEvent<{ downloaded: number; total: number; phase: "downloading" | "installing" }>("update-progress", fn),
   /** A line in the app log (voice diagnostics). */
@@ -391,18 +411,35 @@ export interface WaChat {
   last: string;
   time: string;
   unread: number;
+  /** Photo URL ("" when none). */
+  avatar: string;
+}
+
+export interface WaCall {
+  state: "none" | "incoming" | "active";
+  name: string;
+  time: string;
+  status: string;
+  micOff: boolean;
+  camOff: boolean;
 }
 
 export interface WaMessage {
+  /** Handle for media actions while the chat is open. */
+  id: string;
+  kind: "text" | "audio" | "image" | "video" | "document" | "sticker" | "other";
   when: string;
   from: string;
   text: string;
   mine: boolean;
+  /** Voice notes: "0:12". */
+  duration: string;
 }
 
 export interface WaThread {
   title: string;
   messages: WaMessage[];
+  avatar: string;
 }
 
 export interface UpdateInfo {

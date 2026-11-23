@@ -14,7 +14,9 @@ import {
   type WaChat,
   type WaState,
   type WaThread,
+  type WaCall,
 } from "../core/bridge";
+import { Sound } from "../core/sound";
 import { clear, h } from "../views/dom";
 
 export interface ToolTabsCtx {
@@ -24,6 +26,8 @@ export interface ToolTabsCtx {
   sectionHead(title: string, action?: { label: string; onclick: () => void }): HTMLElement;
   /** Sends a request to Jarvis (chat). */
   ask(prompt: string): void;
+  /** A short note in the notch. */
+  toast?(text: string): void;
 }
 
 const fmtDate = (unix: number) =>
@@ -551,7 +555,82 @@ export function createToolTabs(ctx: ToolTabsCtx) {
     sending: false,
     timer: 0 as number,
     busy: false,
+    /** How many chats are loaded ("Carregar mais" adds a page). */
+    limit: 30,
+    more: false,
+    /** Messages loaded in the open chat ("anteriores" adds 30). */
+    count: 30,
+    keepTop: false,
+    loadingMore: false,
+    /** Voice note being recorded by WhatsApp. */
+    recording: false,
+    /** Voice note playing: its message id. */
+    playing: "",
+    /** Images fetched from the chat: message id → data: URL. */
+    images: {} as Record<string, string>,
+    imageLoading: "",
+    imageFailed: new Set<string>(),
+    /** WhatsApp's list filter: "all" | "unread" | "favorites" | "groups". */
+    filter: "all",
+    query: "",
+    results: null as WaChat[] | null,
+    searching: false,
+    ticks: 0,
+    /** Chats where nothing older is left to load. */
+    noOlder: new Set<string>(),
   };
+
+  const errText = (e: unknown) => String(e).replace(/^Error:\s*/, "");
+
+  // ── Calls: WhatsApp's own call, driven from here (its window stays hidden) ──
+  let call: WaCall | null = null;
+  void Bridge.onWhatsappCall((c) => {
+    const was = call?.state ?? "none";
+    call = c.state === "none" ? null : c;
+    if (c.state === "incoming" && was !== "incoming") {
+      Sound.chime(0.9);
+      ctx.toast?.(`📞 ${c.name || "Alguém"} está ligando no WhatsApp — atenda na aba WhatsApp do notch.`);
+    }
+    if (ctx.isOpen("whatsapp")) ctx.rerender();
+  });
+
+  async function callAction(action: string) {
+    try {
+      const c = await Bridge.whatsappCallAction(action);
+      call = c.state === "none" ? null : c;
+    } catch (e) {
+      wa.error = errText(e);
+    }
+    if (ctx.isOpen("whatsapp")) ctx.rerender();
+  }
+
+  function callBar(): HTMLElement | string {
+    const c = call;
+    if (!c) return "";
+    const btn = (text: string, action: string, cls = "btn btn-ghost btn-sm", title = text) =>
+      h("button", { class: cls, text, title, onclick: () => void callAction(action) });
+    return h(
+      "div",
+      { class: `wa-call ${c.state}` },
+      h("span", { class: "wa-call-dot" }),
+      h(
+        "div",
+        { class: "wa-call-who" },
+        h("div", { class: "wa-call-name", text: c.name || "Chamada do WhatsApp" }),
+        h("div", { class: "wa-call-sub", text: c.state === "incoming" ? "Ligando para você…" : c.time || c.status || "Chamando…" }),
+      ),
+      c.state === "incoming"
+        ? h("div", { class: "wa-call-actions" }, btn("Recusar", "decline", "btn btn-ghost btn-sm"), btn("Atender", "accept", "btn btn-sm wa-accept"))
+        : h(
+            "div",
+            { class: "wa-call-actions" },
+            btn(c.micOff ? "🔇" : "🎙", "mute", `wa-call-btn ${c.micOff ? "on" : ""}`, c.micOff ? "Ativar microfone" : "Silenciar microfone"),
+            btn("📷", "camera", `wa-call-btn ${c.camOff ? "" : "on"}`, c.camOff ? "Ligar câmera" : "Desligar câmera"),
+            btn("⧉", "show", "wa-call-btn", "Ver a janela da chamada"),
+            btn("✆", "hangup", "wa-call-btn wa-hangup", "Desligar"),
+          ),
+    );
+  }
 
   /** While the tab is on screen: QR / loading checks, then fresh chats. */
   function waTick() {
@@ -561,9 +640,11 @@ export function createToolTabs(ctx: ToolTabsCtx) {
       return;
     }
     if (wa.busy || wa.sending) return;
+    wa.ticks++;
     if (wa.state?.state !== "ready") void waLoadState();
-    else if (wa.thread) void waOpen(wa.thread.title, true);
-    else void waLoadChats(true);
+    // The open chat every tick; the list every third one (both columns show).
+    else if (wa.thread && wa.ticks % 3 !== 0) void waOpen(wa.thread.title, true);
+    else if (!wa.results) void waLoadChats(true);
   }
 
   async function waLoadState() {
@@ -590,7 +671,16 @@ export function createToolTabs(ctx: ToolTabsCtx) {
     }
     let same = false;
     try {
-      const next = await Bridge.whatsappChats();
+      // The periodic refresh reads only the top (fast); older chats already
+      // loaded stay below it.
+      const page = await Bridge.whatsappChats(quiet ? 20 : wa.limit, wa.filter);
+      let next = page.chats;
+      if (quiet && wa.chats && wa.chats.length > next.length) {
+        const top = new Set(next.map((c) => c.title));
+        next = [...next, ...wa.chats.filter((c) => !top.has(c.title))];
+      } else {
+        wa.more = page.more;
+      }
       // Nothing new: no redraw (it cost a frame and the scroll position).
       same = quiet && JSON.stringify(next) === JSON.stringify(wa.chats) && !wa.error;
       wa.chats = next;
@@ -600,17 +690,139 @@ export function createToolTabs(ctx: ToolTabsCtx) {
     }
     wa.loading = false;
     wa.busy = false;
-    if (!same && ctx.isOpen("whatsapp") && !wa.thread) ctx.rerender();
+    if (!same && ctx.isOpen("whatsapp")) ctx.rerender();
+  }
+
+  async function waMoreChats() {
+    if (wa.loadingMore || wa.busy) return;
+    wa.loadingMore = true;
+    wa.busy = true;
+    ctx.rerender();
+    try {
+      wa.limit += 40;
+      const page = await Bridge.whatsappChats(wa.limit, wa.filter);
+      wa.chats = page.chats;
+      wa.more = page.more;
+    } catch (e) {
+      wa.error = errText(e);
+    }
+    wa.loadingMore = false;
+    wa.busy = false;
+    if (ctx.isOpen("whatsapp")) ctx.rerender();
+  }
+
+  async function waPlay(chat: string, id: string) {
+    try {
+      const st = await Bridge.whatsappPlay(chat, id);
+      wa.playing = st === "playing" ? id : "";
+    } catch (e) {
+      wa.error = errText(e);
+    }
+    if (ctx.isOpen("whatsapp")) ctx.rerender();
+  }
+
+  async function waShowImage(chat: string, id: string) {
+    wa.imageLoading = id;
+    ctx.rerender();
+    try {
+      wa.images[`${chat}:${id}`] = await Bridge.whatsappImage(chat, id);
+    } catch {
+      // Shown as "🖼 Imagem · Ver" instead; not retried by itself.
+      wa.imageFailed.add(`${chat}:${id}`);
+    }
+    wa.imageLoading = "";
+    if (ctx.isOpen("whatsapp")) ctx.rerender();
+  }
+
+  async function waVoice(action: "start" | "send" | "cancel") {
+    const t = wa.thread;
+    if (!t) return;
+    wa.busy = true;
+    try {
+      await Bridge.whatsappVoice(t.title, action);
+      wa.recording = action === "start";
+      wa.error = "";
+      if (action === "send") window.setTimeout(() => void waOpen(t.title, true), 1500);
+    } catch (e) {
+      wa.recording = false;
+      wa.error = errText(e);
+    }
+    wa.busy = false;
+    if (ctx.isOpen("whatsapp")) ctx.rerender();
+  }
+
+  /** One message bubble: text, or a control for its media. */
+  function waBubble(t: WaThread, m: WaThread["messages"][number]) {
+    const key = `${t.title}:${m.id}`;
+    let body: HTMLElement | string;
+    if (m.kind === "audio") {
+      const playing = wa.playing === m.id;
+      body = h(
+        "div",
+        { class: "wa-media" },
+        h("button", { class: "wa-play", text: playing ? "❚❚" : "▶", title: playing ? "Pausar" : "Ouvir", onclick: () => void waPlay(t.title, m.id) }),
+        h("span", { text: `Áudio${m.duration ? ` · ${m.duration}` : ""}` }),
+      );
+    } else if (m.kind === "image") {
+      const src = wa.images[key];
+      body = src
+        ? h(
+            "div",
+            {},
+            h("img", { class: "wa-img", src, alt: "Imagem" }),
+            h("button", {
+              class: "link-btn",
+              text: "Baixar",
+              onclick: async () => {
+                try {
+                  const path = await Bridge.whatsappSaveImage(src, t.title);
+                  wa.error = "";
+                  ctx.toast?.(`Imagem salva em ${path}`);
+                } catch (e) {
+                  wa.error = errText(e);
+                  ctx.rerender();
+                }
+              },
+            }),
+          )
+        : h(
+            "div",
+            { class: "wa-media" },
+            h("span", { text: "🖼 Imagem" }),
+            h("button", { class: "link-btn", text: wa.imageLoading === m.id ? "carregando…" : "Ver", onclick: () => (wa.imageFailed.delete(key), void waShowImage(t.title, m.id)) }),
+          );
+    } else if (m.kind === "video") body = h("div", { class: "wa-media", text: "🎬 Vídeo (abra no celular)" });
+    else if (m.kind === "document") body = h("div", { class: "wa-media", text: "📎 Documento" });
+    else if (m.kind === "sticker") body = h("div", { class: "wa-media", text: "Figurinha" });
+    else body = "";
+    return h(
+      "div",
+      { class: `wa-msg ${m.mine ? "mine" : ""}` },
+      !m.mine && m.from && m.from !== t.title ? h("div", { class: "wa-from", text: m.from }) : "",
+      body,
+      m.text ? h("div", { class: "wa-text", text: m.text }) : "",
+      h("div", { class: "wa-when", text: (m.when.split(",")[0] || "").trim() }),
+    );
   }
 
   async function waOpen(title: string, quiet = false) {
     wa.busy = true;
     if (!quiet) {
       wa.opening = title;
+      // Another chat: its header right away, the messages when they come.
+      if (wa.thread?.title !== title) {
+        const known = (wa.results ?? wa.chats ?? []).find((c) => c.title === title);
+        wa.thread = { title, messages: [], avatar: known?.avatar ?? "" };
+        wa.draft = "";
+      }
       ctx.rerender();
     }
     try {
-      const t = await Bridge.whatsappThread(title);
+      if (!quiet && !wa.thread?.messages.length) wa.count = 30;
+      const before = wa.thread?.title === title ? wa.thread.messages.length : 0;
+      const t = await Bridge.whatsappThread(title, wa.count);
+      // Asked for older ones and nothing more came: the start of the chat.
+      if (!quiet && wa.keepTop && t.messages.length <= before) wa.noOlder.add(title);
       // Still on this chat (the user may have gone back meanwhile).
       if (quiet && wa.thread?.title !== title) return;
       // Nothing new and the user may be typing: leave the page alone.
@@ -644,17 +856,78 @@ export function createToolTabs(ctx: ToolTabsCtx) {
     if (ctx.isOpen("whatsapp")) ctx.rerender();
   }
 
+  // ── The WhatsApp tab, laid out like WhatsApp: chats on the left, the open
+  //    chat on the right. ──────────────────────────────────────────────────────
+  const AVATAR_COLORS = ["#25d366", "#53bdeb", "#ffbc38", "#ff72a1", "#a78bfa", "#06cf9c", "#fb923c"];
+  function avatar(name: string, src: string, size = 42): HTMLElement {
+    if (src) return h("img", { class: "wa-avatar", src, alt: "", style: `width:${size}px;height:${size}px` });
+    const letter = (name.replace(/[^\p{L}\p{N}]/gu, "")[0] || "?").toUpperCase();
+    let n = 0;
+    for (const ch of name) n = (n * 31 + ch.charCodeAt(0)) >>> 0;
+    return h("div", {
+      class: "wa-avatar wa-avatar-letter",
+      text: letter,
+      style: `width:${size}px;height:${size}px;background:${AVATAR_COLORS[n % AVATAR_COLORS.length]};font-size:${Math.round(size * 0.42)}px`,
+    });
+  }
+
+  async function waSearch(q: string) {
+    wa.query = q;
+    if (!q.trim()) {
+      wa.results = null;
+      ctx.rerender();
+      return;
+    }
+    wa.busy = true;
+    wa.searching = true;
+    ctx.rerender();
+    try {
+      wa.results = await Bridge.whatsappSearch(q);
+    } catch (e) {
+      wa.error = errText(e);
+    }
+    wa.searching = false;
+    wa.busy = false;
+    if (ctx.isOpen("whatsapp")) ctx.rerender();
+  }
+
+  function chatRow(c: WaChat) {
+    const open = wa.thread?.title === c.title;
+    return h(
+      "button",
+      { class: `wa-row ${open ? "open" : ""}`, onclick: () => void waOpen(c.title) },
+      avatar(c.title, c.avatar),
+      h(
+        "div",
+        { class: "wa-row-body" },
+        h(
+          "div",
+          { class: "wa-row-top" },
+          h("span", { class: "wa-row-name", text: c.title }),
+          h("span", { class: `wa-row-time ${c.unread ? "unread" : ""}`, text: wa.opening === c.title ? "abrindo…" : c.time }),
+        ),
+        h(
+          "div",
+          { class: "wa-row-bottom" },
+          h("span", { class: "wa-row-last", text: c.last }),
+          c.unread ? h("span", { class: "wa-badge", text: String(c.unread) }) : "",
+        ),
+      ),
+    );
+  }
+
   function renderWhatsApp(main: HTMLElement) {
     if (!wa.timer) wa.timer = window.setInterval(waTick, 4000);
     if (wa.state == null && !wa.busy) void waLoadState();
 
     const st = wa.state?.state;
-    if (wa.error && st !== "ready") main.append(note(wa.error, true));
-    if (st == null || st === "loading") {
-      main.append(ctx.sectionHead("WhatsApp"), note("Carregando o WhatsApp…"));
-      return;
-    }
-    if (st === "qr") {
+    if (st !== "ready") {
+      main.append(callBar());
+      if (wa.error) main.append(note(wa.error, true));
+      if (st == null || st === "loading") {
+        main.append(ctx.sectionHead("WhatsApp"), note("Carregando o WhatsApp…"));
+        return;
+      }
       main.append(
         ctx.sectionHead("WhatsApp"),
         h(
@@ -673,82 +946,167 @@ export function createToolTabs(ctx: ToolTabsCtx) {
       return;
     }
 
-    // An open chat.
-    if (wa.thread) {
-      const t = wa.thread;
-      const input = h("input", { class: "input tt-search", placeholder: `Mensagem para ${t.title}`, value: wa.draft }) as HTMLInputElement;
-      input.addEventListener("input", () => (wa.draft = input.value));
+    main.classList.add("main-flush");
+    if (wa.chats == null && !wa.loading && !wa.busy) void waLoadChats();
+
+    // ── Left: search, filters, chats, the call bar ──
+    const search = h("input", { class: "wa-search-input", placeholder: "Pesquisar ou começar uma nova conversa", value: wa.query }) as HTMLInputElement;
+    search.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") void waSearch(search.value);
+      if (e.key === "Escape") void waSearch("");
+    });
+    const filters: [string, string][] = [
+      ["all", "Tudo"],
+      ["unread", "Não lidas"],
+      ["favorites", "Favoritas"],
+      ["groups", "Grupos"],
+    ];
+    const shown = wa.results ?? wa.chats ?? [];
+    const list = h(
+      "div",
+      { class: "wa-chatlist" },
+      ...(wa.searching
+        ? [note("Procurando…")]
+        : wa.loading && !wa.chats
+          ? [note("Carregando conversas…")]
+          : shown.length
+            ? shown.map(chatRow)
+            : [note(wa.results ? "Nada encontrado." : "Nenhuma conversa aqui.")]),
+      !wa.results && (wa.more || wa.loadingMore)
+        ? h("button", { class: "wa-more", text: wa.loadingMore ? "Carregando…" : "Carregar mais conversas", onclick: () => void waMoreChats() })
+        : "",
+    );
+    const side = h(
+      "aside",
+      { class: "wa-side" },
+      h(
+        "div",
+        { class: "wa-side-head" },
+        h("span", { class: "wa-brand", text: "WhatsApp" }),
+        h(
+          "div",
+          { style: "display:flex;gap:2px" },
+          h("button", { class: "wa-icon-btn", text: "⧉", title: "Abrir o WhatsApp completo numa janela", onclick: () => void callAction("show") }),
+          h("button", { class: "wa-icon-btn", text: "⟳", title: "Atualizar", onclick: () => void waLoadChats() }),
+        ),
+      ),
+      h(
+        "div",
+        { class: "wa-search" },
+        h("span", { class: "wa-search-icon", text: "⌕" }),
+        search,
+        wa.query ? h("button", { class: "wa-icon-btn", text: "✕", title: "Limpar", onclick: () => void waSearch("") }) : "",
+      ),
+      h(
+        "div",
+        { class: "wa-filters" },
+        ...filters.map(([id, label]) =>
+          h("button", {
+            class: `wa-filter ${wa.filter === id ? "on" : ""}`,
+            text: label,
+            onclick: () => {
+              wa.filter = id;
+              wa.results = null;
+              wa.query = "";
+              wa.limit = 30;
+              void waLoadChats();
+            },
+          }),
+        ),
+      ),
+      list,
+      callBar(),
+    );
+
+    // ── Right: the open chat ──
+    let pane: HTMLElement;
+    const t = wa.thread;
+    if (!t) {
+      pane = h(
+        "section",
+        { class: "wa-pane wa-pane-empty" },
+        h("div", { class: "wa-empty-title", text: "WhatsApp no Jarvis" }),
+        h("div", { class: "wa-empty-sub", text: wa.opening ? "Abrindo a conversa…" : "Escolha uma conversa à esquerda. Ele só lê quando você abre ou pede." }),
+      );
+    } else {
+      const input = h("input", { class: "wa-compose-input", placeholder: "Digite uma mensagem", value: wa.draft }) as HTMLInputElement;
+      const sendOrMic = () => (wa.draft.trim() ? "send" : "mic");
+      const action = h("button", {
+        class: "wa-round-btn",
+        text: sendOrMic() === "send" ? "➤" : "🎙",
+        title: sendOrMic() === "send" ? "Enviar" : "Gravar áudio",
+        onclick: () => (wa.draft.trim() ? void waSend() : void waVoice("start")),
+      });
+      input.addEventListener("input", () => {
+        wa.draft = input.value;
+        action.textContent = sendOrMic() === "send" ? "➤" : "🎙";
+        action.title = sendOrMic() === "send" ? "Enviar" : "Gravar áudio";
+      });
       input.addEventListener("keydown", (e) => {
         if (e.key === "Enter") void waSend();
       });
-      const list = h(
+      const msgs = h(
         "div",
-        { class: "wa-thread" },
+        { class: "wa-messages" },
+        t.messages.length && !wa.noOlder.has(t.title)
+          ? h("button", {
+              class: "wa-older",
+              text: wa.opening === t.title ? "Carregando…" : "Carregar mensagens anteriores",
+              onclick: () => {
+                wa.count += 30;
+                wa.keepTop = true;
+                void waOpen(t.title);
+              },
+            })
+          : "",
         ...(t.messages.length
-          ? t.messages.map((m) =>
-              h(
-                "div",
-                { class: `wa-msg ${m.mine ? "mine" : ""}` },
-                !m.mine && m.from && m.from !== t.title ? h("div", { class: "wa-from", text: m.from }) : "",
-                h("div", { class: "wa-text", text: m.text }),
-                h("div", { class: "wa-when", text: (m.when.split(",")[0] || "").trim() }),
-              ),
-            )
-          : [note("Sem mensagens de texto recentes.")]),
+          ? t.messages.map((m) => waBubble(t, m))
+          : [note(wa.opening === t.title ? "Carregando mensagens…" : "Sem mensagens recentes.")]),
       );
-      main.append(
+      pane = h(
+        "section",
+        { class: "wa-pane" },
         h(
           "div",
-          { class: "tt-mail-head" },
-          h("button", { class: "link-btn", text: "‹ Conversas", onclick: () => ((wa.thread = null), (wa.draft = ""), void waLoadChats(true), ctx.rerender()) }),
-          h("div", { class: "tt-mail-subject", text: t.title }),
+          { class: "wa-pane-head" },
+          avatar(t.title, t.avatar, 36),
+          h("div", { class: "wa-pane-name", text: t.title }),
+          h("button", { class: "wa-icon-btn", text: "🎥", title: "Chamada de vídeo", onclick: () => void waCall(t.title, true) }),
+          h("button", { class: "wa-icon-btn", text: "📞", title: "Ligar", onclick: () => void waCall(t.title, false) }),
         ),
-        list,
-        wa.error ? note(wa.error, true) : "",
-        h(
-          "div",
-          { class: "tt-searchbar", style: "margin-top:10px" },
-          input,
-          h("button", { class: "btn", text: wa.sending ? "Enviando…" : "Enviar", onclick: () => void waSend() }),
-        ),
+        msgs,
+        wa.error ? h("div", { class: "wa-error", text: wa.error }) : "",
+        wa.recording
+          ? h(
+              "div",
+              { class: "wa-compose wa-recording" },
+              h("span", { class: "wa-rec-dot" }),
+              h("span", { style: "flex:1", text: "Gravando áudio… fale no microfone" }),
+              h("button", { class: "btn btn-ghost btn-sm", text: "Cancelar", onclick: () => void waVoice("cancel") }),
+              h("button", { class: "wa-round-btn", text: "➤", title: "Enviar áudio", onclick: () => void waVoice("send") }),
+            )
+          : h("div", { class: "wa-compose" }, input, action),
       );
       queueMicrotask(() => {
-        list.scrollTop = list.scrollHeight;
-        input.focus();
+        msgs.scrollTop = wa.keepTop ? 0 : msgs.scrollHeight;
+        wa.keepTop = false;
+        if (!wa.recording) input.focus();
       });
-      return;
+      // Images come in by themselves, one at a time.
+      const pending = t.messages.find((m) => m.kind === "image" && !wa.images[`${t.title}:${m.id}`] && !wa.imageFailed.has(`${t.title}:${m.id}`));
+      if (pending && !wa.imageLoading) window.setTimeout(() => void waShowImage(t.title, pending.id), 50);
     }
 
-    // The chat list.
-    main.append(ctx.sectionHead("WhatsApp", { label: "Atualizar", onclick: () => void waLoadChats() }));
-    if (wa.error) main.append(note(wa.error, true));
-    if (wa.loading && wa.chats == null) return void main.append(note("Carregando conversas…"));
-    const chats = wa.chats ?? [];
-    if (!chats.length) return void main.append(note("Nenhuma conversa carregada ainda."));
-    main.append(
-      h(
-        "div",
-        { class: "tt-list" },
-        ...chats.map((c) =>
-          h(
-            "button",
-            { class: `tt-row tt-mail ${c.unread ? "unread" : ""}`, onclick: () => void waOpen(c.title) },
-            h(
-              "div",
-              { class: "tt-row-top" },
-              h("span", { class: "tt-row-title", text: c.title }),
-              h(
-                "span",
-                { class: "tt-row-meta" },
-                wa.opening === c.title ? "abrindo…" : c.time,
-                c.unread ? h("span", { class: "wa-badge", text: String(c.unread) }) : "",
-              ),
-            ),
-            c.last ? h("div", { class: "tt-row-snippet", text: c.last }) : "",
-          ),
-        ),
-      ),
-    );
+    main.append(h("div", { class: "wa-app" }, side, pane));
+  }
+
+  async function waCall(chat: string, video: boolean) {
+    try {
+      ctx.toast?.(await Bridge.whatsappCall(chat, video));
+    } catch (e) {
+      wa.error = errText(e);
+      ctx.rerender();
+    }
   }
 
   return { renderMail, renderWhatsApp, renderFiles, renderNotes, renderGithub, renderPcExtras, refreshAudio: loadAudio };

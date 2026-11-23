@@ -34,7 +34,9 @@ getrandom = "0.2"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 # Jarvis browser control: Chrome DevTools Protocol over a local websocket
 # (ws://127.0.0.1 only, so no TLS stack is pulled in).
-tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect"] }
+# Also the Jarvis voice (edge_tts.rs): wss to Microsoft's speech service, over
+# the same rustls that reqwest already uses.
+tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 
 [target.'cfg(windows)'.dependencies]

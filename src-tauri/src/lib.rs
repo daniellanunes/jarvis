@@ -10,6 +10,7 @@ mod claude;
 mod codex_plan;
 mod config_file;
 mod desktop;
+mod edge_tts;
 mod file_search;
 mod files;
 mod github;
@@ -924,10 +925,18 @@ pub fn run() {
             jarvis_tools::jarvis_briefing,
             jarvis_tools::jarvis_github_overview,
             open_project,
+            edge_tts::tts_voices,
             code_editor_name,
             list_code_editors,
             whatsapp::whatsapp_state,
             whatsapp::whatsapp_chats,
+            whatsapp::whatsapp_play,
+            whatsapp::whatsapp_image,
+            whatsapp::whatsapp_save_image,
+            whatsapp::whatsapp_voice,
+            whatsapp::whatsapp_call,
+            whatsapp::whatsapp_call_action,
+            whatsapp::whatsapp_search,
             whatsapp::whatsapp_thread,
             whatsapp::whatsapp_send,
             jarvis_brain::jarvis_brain_status,

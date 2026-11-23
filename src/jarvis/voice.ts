@@ -84,7 +84,7 @@ export class JarvisVoice {
   attachLocal() {
     void Bridge.onVoiceLocalState((st) => {
       if (st === "listening") {
-        Sound.play("pop");
+        listenCue();
         this.setState("listening", "Fala…");
       } else if (st === "transcribing") {
         this.setState("transcribing", "Transcrevendo…");
@@ -459,7 +459,7 @@ export class JarvisVoice {
       // Just "Jarvis": the next sentence (within 7 s) is the command — the
       // microphone stays open, so nothing said right after is lost.
       vlog(`"Jarvis" — ouvindo o comando`);
-      Sound.play("pop");
+      listenCue();
       this.beginListening();
     }
     return true;
@@ -532,7 +532,7 @@ export class JarvisVoice {
       this.currentAudio.pause();
       this.currentAudio = null;
     }
-    Sound.play("pop");
+    listenCue();
 
     if (!navigator.mediaDevices?.getUserMedia) return;
 
@@ -761,6 +761,15 @@ export function speakable(text: string): string {
       .replace(/\s{2,}/g, " ")
       .trim()
   );
+}
+
+/** The sound that says "I'm listening" (Ajustes → Voz do Jarvis):
+ *  "loud" (default, heard from across the room) | "soft" | "classic" | "off". */
+export function listenCue() {
+  const mode = State.settings.jarvisListenChime || "loud";
+  if (mode === "loud") Sound.chime(0.9);
+  else if (mode === "soft") Sound.chime(0.3);
+  else if (mode === "classic") Sound.play("pop");
 }
 
 /** Does the reply end by asking the user something? Then the answer can come

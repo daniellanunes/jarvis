@@ -99,6 +99,12 @@ const answers: Record<string, (args: any) => unknown> = {
     calEvents = calEvents.filter((e) => e.key !== key);
     return null;
   },
+  // Neural voices (edge_tts.rs).
+  tts_voices: () => [
+    { id: "pt-BR-AntonioNeural", label: "Antonio — masculina, Brasil" },
+    { id: "pt-BR-FranciscaNeural", label: "Francisca — feminina, Brasil" },
+    { id: "pt-BR-ThalitaMultilingualNeural", label: "Thalita — feminina, Brasil" },
+  ],
   // Code editors found on the PC.
   list_code_editors: () => [
     { name: "Antigravity IDE", path: "C:\\Users\\voce\\AppData\\Local\\Programs\\Antigravity IDE\\Antigravity IDE.exe" },
@@ -108,21 +114,33 @@ const answers: Record<string, (args: any) => unknown> = {
   code_editor_name: () => "Antigravity IDE",
   // WhatsApp (fictional chats).
   whatsapp_state: () => ({ state: "ready", qr: null }),
-  whatsapp_chats: () => [
-    { title: "Ana Souza", last: "Combinado, chego às 8!", time: "14:02", unread: 2 },
-    { title: "Família", last: "Mãe: Domingo tem almoço aqui", time: "13:40", unread: 5 },
-    { title: "Carlos (trabalho)", last: "Você: Mandei o relatório", time: "11:15", unread: 0 },
-    { title: "Mensagens para mim", last: "Você: comprar pão", time: "ontem", unread: 0 },
-  ],
-  whatsapp_thread: ({ chat }) => ({
-    title: chat,
-    messages: [
-      { when: "13:50", from: chat, text: "Oi! Vamos jantar hoje?", mine: false },
-      { when: "13:58", from: "Você", text: "Bora! Que horas?", mine: true },
-      { when: "14:01", from: chat, text: "Às 8 no lugar de sempre?", mine: false },
-      { when: "14:02", from: chat, text: "Combinado, chego às 8!", mine: false },
+  whatsapp_chats: () => ({
+    more: true,
+    chats: [
+      { title: "Ana Souza", last: "Combinado, chego às 8!", time: "14:02", unread: 2, avatar: "" },
+      { title: "Família", last: "Mãe: Domingo tem almoço aqui", time: "13:40", unread: 5, avatar: "" },
+      { title: "Carlos (trabalho)", last: "Você: Mandei o relatório", time: "11:15", unread: 0, avatar: "" },
+      { title: "Mensagens para mim", last: "Você: comprar pão", time: "ontem", unread: 0, avatar: "" },
     ],
   }),
+  whatsapp_search: () => [{ title: "Ana Souza", last: "Combinado, chego às 8!", time: "14:02", unread: 0, avatar: "" }],
+  whatsapp_thread: ({ chat }) => ({
+    title: chat,
+    avatar: "",
+    messages: [
+      { id: "m0", kind: "text", when: "13:50", from: chat, text: "Oi! Vamos jantar hoje?", mine: false, duration: "" },
+      { id: "m1", kind: "text", when: "13:58", from: "Você", text: "Bora! Que horas?", mine: true, duration: "" },
+      { id: "m2", kind: "audio", when: "14:00", from: chat, text: "", mine: false, duration: "0:14" },
+      { id: "m3", kind: "image", when: "14:01", from: chat, text: "Olha o lugar", mine: false, duration: "" },
+      { id: "m4", kind: "text", when: "14:02", from: chat, text: "Combinado, chego às 8!", mine: false, duration: "" },
+    ],
+  }),
+  whatsapp_play: () => "playing",
+  whatsapp_image: () =>
+    "data:image/svg+xml;base64," +
+    btoa('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f59e0b"/><stop offset="1" stop-color="#be185d"/></linearGradient></defs><rect width="320" height="200" fill="url(#g)"/><text x="160" y="110" font-size="22" text-anchor="middle" fill="white" font-family="sans-serif">Restaurante</text></svg>'),
+  whatsapp_save_image: () => "C:\Users\voce\Downloads\WhatsApp (Jarvis)\Ana Souza.jpg",
+  whatsapp_voice: ({ action }) => (action === "start" ? "recording" : "sent"),
   whatsapp_send: () => "Mensagem enviada.",
   gmail_list: () => [
     { id: "m1", threadId: "t1", from: "Ana Souza <ana@exemplo.com>", subject: "Proposta do projeto — versão final", date: new Date().toUTCString(), snippet: "Oi! Segue a versão final da proposta com os ajustes que conversamos…", unread: true },
@@ -161,7 +179,7 @@ const answers: Record<string, (args: any) => unknown> = {
   wakeword_status: () => ({ active: params.has("enrolled"), enrolled: params.has("enrolled"), samples: 0, samplesWanted: 6, error: "" }),
   wakeword_restart: () => null,
   weather_now: (a: any) => ({ place: a?.city ? `${a.city}, Pernambuco` : "Recife, Pernambuco", temp: 30.9, feels: 35.5, max: 31.3, min: 25.8, rainChance: 40, code: 2, isDay: true, kind: params.get("wkind") ?? "partly", label: "Parcialmente nublado" }),
-  boot: () => ({ settings: { jarvisSpotifyClientId: "x", jarvisTheme: params.get("theme") ?? "graphite", ...(params.has("widgets") ? { jarvisNotchWeather: true, jarvisWeatherCity: "Recife", jarvisNotchPc: true, jarvisNotchFps: true, jarvisNotchNet: true, jarvisGameMode: params.has("game") } : {}) }, screen: { x: 0, y: 0, width: 1920, height: 1080, scale: 1 }, version: "dev", hookPath: "", cursorPoll: true }),
+  boot: () => ({ settings: { jarvisSpotifyClientId: "x", jarvisTheme: params.get("theme") ?? "graphite", jarvisNotchShape: params.get("shape") ?? "notch", ...(params.has("widgets") ? { jarvisNotchWeather: true, jarvisWeatherCity: "Recife", jarvisNotchPc: true, jarvisNotchFps: true, jarvisNotchNet: true, jarvisGameMode: params.has("game") } : {}) }, screen: { x: 0, y: 0, width: 1920, height: 1080, scale: 1 }, version: "dev", hookPath: "", cursorPoll: true }),
   jarvis_data_load: () => data,
   jarvis_brain_status: () => ({
     groqConfigured: true, geminiConfigured: true, openaiConfigured: false, claudeConfigured: true, ollamaUrl: "", brainMode: "auto",
@@ -252,11 +270,19 @@ if (sub) {
     b?.click();
   }, 700);
 }
+const callSim = params.get("call");
+if (callSim) {
+  // A WhatsApp call, as whatsapp.rs reports it.
+  setTimeout(
+    () => (window as any).__emit?.("whatsapp-call", { state: callSim, name: "Ana Souza", time: callSim === "active" ? "0:42" : "", status: "", micOff: false, camOff: true }),
+    1500,
+  );
+}
 const wachat = params.get("wachat");
 if (wachat) {
   // Opens a WhatsApp chat by its name (the WhatsApp tab must be open).
   setTimeout(() => {
-    const row = [...document.querySelectorAll<HTMLElement>(".tt-row")].find((r) => r.textContent?.includes(wachat));
+    const row = [...document.querySelectorAll<HTMLElement>(".wa-row, .tt-row")].find((r) => r.textContent?.includes(wachat));
     row?.click();
   }, 1200);
 }

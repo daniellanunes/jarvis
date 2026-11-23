@@ -19,7 +19,55 @@ use crate::Shared;
 
 const GROQ_CHAT_URL: &str = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_WHISPER_URL: &str = "https://api.groq.com/openai/v1/audio/transcriptions";
-const GROQ_MODEL: &str = "llama-3.3-70b-versatile";
+/// Groq retires models from time to time; the first of these the account has
+/// is used (the list is read again when a model stops existing).
+const GROQ_MODELS: &[&str] = &[
+    "openai/gpt-oss-120b",
+    "moonshotai/kimi-k2-instruct-0905",
+    "moonshotai/kimi-k2-instruct",
+    "llama-3.3-70b-versatile",
+    "meta-llama/llama-4-maverick-17b-128e-instruct",
+    "qwen/qwen3-32b",
+    "openai/gpt-oss-20b",
+    "llama-3.1-8b-instant",
+];
+static GROQ_PICKED: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// The Groq chat model to use with this key (cached).
+async fn groq_model(api_key: &str, refresh: bool) -> String {
+    if !refresh {
+        if let Some(m) = GROQ_PICKED.lock().unwrap_or_else(|e| e.into_inner()).clone() {
+            return m;
+        }
+    }
+    let listed: Vec<String> = match http_client() {
+        Ok(c) => match c.get("https://api.groq.com/openai/v1/models").bearer_auth(api_key).send().await {
+            Ok(r) => r
+                .json::<serde_json::Value>()
+                .await
+                .ok()
+                .and_then(|v| v["data"].as_array().cloned())
+                .unwrap_or_default()
+                .iter()
+                .filter_map(|m| m["id"].as_str().map(str::to_string))
+                .collect(),
+            Err(_) => Vec::new(),
+        },
+        Err(_) => Vec::new(),
+    };
+    let pick = GROQ_MODELS
+        .iter()
+        .find(|m| listed.iter().any(|l| l == *m))
+        .map(|m| m.to_string())
+        .or_else(|| {
+            // None of ours: any chat model (not speech, not a guard model).
+            listed.iter().find(|l| !l.contains("whisper") && !l.contains("tts") && !l.contains("guard") && !l.contains("orpheus")).cloned()
+        })
+        .unwrap_or_else(|| GROQ_MODELS[0].to_string());
+    crate::log::line(format!("groq: usando o modelo {pick}"));
+    *GROQ_PICKED.lock().unwrap_or_else(|e| e.into_inner()) = Some(pick.clone());
+    pick
+}
 /// The full large-v3, not turbo: more accurate in Portuguese (turbo slipped
 /// into Spanish and missed names), and still well under a second on Groq.
 const GROQ_WHISPER_MODEL: &str = "whisper-large-v3";
@@ -591,6 +639,10 @@ async fn jarvis_ask_inner(
     if let Some(text) = crate::whatsapp::answer_held(&prompt).await {
         return Ok(JarvisReply { text, provider_used: "WhatsApp".to_string(), actions: Vec::new(), pending_actions: Vec::new() });
     }
+    // "Liga para X (no WhatsApp)": asked back at once, no AI round trip.
+    if let Some(text) = crate::whatsapp::quick_call(&prompt) {
+        return Ok(JarvisReply { text, provider_used: "WhatsApp".to_string(), actions: Vec::new(), pending_actions: Vec::new() });
+    }
 
     // Simple, unambiguous commands run right away, with no AI round trip.
     if image_base64.as_deref().map_or(true, str::is_empty) {
@@ -991,8 +1043,15 @@ async fn run_route(
         _ => (None, ""),
     };
     if let Some(auth) = auth {
-        let (text, actions, pending_actions) =
-            call_gemini_agentic(app, &auth, system_prompt, prompt, history, image, sa).await?;
+        let (text, actions, pending_actions) = match call_gemini_agentic(app, &auth, system_prompt, prompt, history, image, sa).await {
+            // Google's filter refused the request — most often for something
+            // earlier in the conversation: once more with this message alone.
+            Err(e) if e.contains("pedido bloqueado") && !history.is_empty() => {
+                crate::log::line("gemini: pedido bloqueado pelo filtro; tentando sem o histórico");
+                call_gemini_agentic(app, &auth, system_prompt, prompt, &[], image, sa).await?
+            }
+            other => other?,
+        };
         return Ok(JarvisReply {
             text,
             provider_used: provider.to_string(),
@@ -1005,7 +1064,7 @@ async fn run_route(
     let tagged = format!("{system_prompt}\n{}", JARVIS_SYSTEM_PROMPT_TAGS.trim());
     let system_prompt = tagged.as_str();
     let (raw, provider) = match route {
-        Route::Groq(k) => (call_groq(k, system_prompt, prompt, history).await?, "Groq (Llama 3.3)"),
+        Route::Groq(k) => (call_groq(k, system_prompt, prompt, history).await?, "Groq"),
         Route::OpenAi(k) => (
             call_openai(k, system_prompt, prompt, history, image).await?,
             if image.is_some() { "OpenAI Vision" } else { "OpenAI (ChatGPT)" },
@@ -1178,6 +1237,21 @@ pub async fn jarvis_tts(text: String) -> Result<String, String> {
     if clean.is_empty() {
         return Err("Texto vazio".into());
     }
+    let s = crate::settings::load();
+    if s.jarvis_tts_voice == "windows" {
+        // The offline Windows voice: the island speaks it itself.
+        return Err("windows-voice".into());
+    }
+    let voice = if s.jarvis_tts_voice.is_empty() { crate::edge_tts::DEFAULT_VOICE.to_string() } else { s.jarvis_tts_voice.clone() };
+    match crate::edge_tts::synthesize(&clean, &voice, s.jarvis_tts_rate).await {
+        Ok(mp3) => return Ok(encode_base64(&mp3)),
+        Err(e) => crate::log::line(format!("voz: {e}; tentando o edge-tts do Python")),
+    }
+    python_edge_tts(clean, voice, s.jarvis_tts_rate).await
+}
+
+/// The old path, kept as a fallback: `python -m edge_tts` (when installed).
+async fn python_edge_tts(clean: String, voice: String, rate_pct: i32) -> Result<String, String> {
     let tmp = std::env::temp_dir().join(format!(
         "jarvis_tts_{}_{}.mp3",
         std::process::id(),
@@ -1187,21 +1261,11 @@ pub async fn jarvis_tts(text: String) -> Result<String, String> {
             .unwrap_or(0)
     ));
     let tmp_str = tmp.to_string_lossy().to_string();
+    let rate = format!("{}{}%", if rate_pct >= 0 { "+" } else { "" }, rate_pct);
 
     let result = tokio::task::spawn_blocking(move || -> Result<Vec<u8>, String> {
         let mut cmd = std::process::Command::new("python");
-        cmd.args([
-            "-m",
-            "edge_tts",
-            "--voice",
-            "pt-BR-AntonioNeural",
-            "--rate",
-            "+8%",
-            "--text",
-            &clean,
-            "--write-media",
-            &tmp_str,
-        ]);
+        cmd.args(["-m", "edge_tts", "--voice", &voice, "--rate", &rate, "--text", &clean, "--write-media", &tmp_str]);
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -1261,24 +1325,32 @@ async fn call_groq(
     messages.push(json!({ "role": "user", "content": prompt }));
 
     let client = http_client()?;
-    let res = client
-        .post(GROQ_CHAT_URL)
-        .bearer_auth(api_key)
-        .json(&json!({
-            "model": GROQ_MODEL,
-            "messages": messages,
-            "temperature": 0.6,
-            "max_tokens": 2048,
-        }))
-        .send()
-        .await
-        .map_err(|e| net_err("Groq", e))?;
-
-    let status = res.status();
-    let body: serde_json::Value = res
-        .json()
-        .await
-        .map_err(|e| format!("Resposta inválida do Groq: {e}"))?;
+    let mut model = groq_model(api_key, false).await;
+    let mut tried_refresh = false;
+    let (status, body) = loop {
+        let res = client
+            .post(GROQ_CHAT_URL)
+            .bearer_auth(api_key)
+            .json(&json!({
+                "model": model,
+                "messages": messages,
+                "temperature": 0.6,
+                "max_tokens": 2048,
+            }))
+            .send()
+            .await
+            .map_err(|e| net_err("Groq", e))?;
+        let status = res.status();
+        let body: serde_json::Value = res.json().await.map_err(|e| format!("Resposta inválida do Groq: {e}"))?;
+        // The model was retired: read the account's list and try once more.
+        let gone = status.as_u16() == 404 || body["error"]["code"].as_str() == Some("model_not_found") || body["error"]["code"].as_str() == Some("model_decommissioned");
+        if gone && !tried_refresh {
+            tried_refresh = true;
+            model = groq_model(api_key, true).await;
+            continue;
+        }
+        break (status, body);
+    };
 
     if !status.is_success() {
         let msg = body["error"]["message"]
@@ -2714,6 +2786,11 @@ fn extract_and_run_actions(
     }
     clean.push_str(rest);
     (clean.trim().to_string(), actions, pending_actions)
+}
+
+/// Base64 to bytes, for other modules (WhatsApp images).
+pub fn decode_base64_pub(input: &str) -> Result<Vec<u8>, String> {
+    decode_base64(input.trim()).map_err(|e| e.to_string())
 }
 
 fn decode_base64(input: &str) -> Result<Vec<u8>, &'static str> {

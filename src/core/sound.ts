@@ -144,6 +144,50 @@ class SoundEngine {
     src.start();
   }
 
+  /**
+   * "I'm listening": a bright two-note chime, synthesized, played at `level`
+   * (0–1) straight to the speakers — not through the master volume, which is
+   * kept low for the other sounds (0.2 at most). Heard across the room.
+   */
+  chime(level = 0.9) {
+    const ctx = this.ctx;
+    if (!ctx || level <= 0) return;
+    if (this.idleTimer != null) {
+      window.clearTimeout(this.idleTimer);
+      this.idleTimer = null;
+    }
+    if (ctx.state === "suspended") void ctx.resume();
+    const out = ctx.createGain();
+    out.gain.value = Math.min(1, level);
+    out.connect(ctx.destination);
+    // E6 then B6, each with two soft overtones; a fast attack, a bell's decay.
+    const notes: [number, number][] = [
+      [1318.5, 0],
+      [1975.5, 0.12],
+    ];
+    for (const [freq, at] of notes) {
+      const t = ctx.currentTime + 0.01 + at;
+      for (const [mult, amp] of [
+        [1, 0.55],
+        [2, 0.14],
+        [3, 0.05],
+      ] as const) {
+        const osc = ctx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.value = freq * mult;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(amp, t + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+        osc.connect(g);
+        g.connect(out);
+        osc.start(t);
+        osc.stop(t + 0.5);
+      }
+    }
+    window.setTimeout(() => out.disconnect(), 900);
+  }
+
   /** Fades every playing copy of `name` to silence over `seconds`, then stops it. */
   fadeOut(name: string, seconds: number) {
     const ctx = this.ctx;

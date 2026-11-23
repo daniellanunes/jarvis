@@ -59,9 +59,13 @@ Uma pílula no topo da tela, com o mascote, a música tocando e as informações
 | <img src="docs/images/notch-youtube.png" alt="Notch mostrando um vídeo do YouTube"> | Mostra o que toca em **qualquer app** (YouTube, VLC, Netflix…), não só no Spotify. |
 | <img src="docs/images/notch-alert.png" alt="Lembrete no notch"> | **Lembretes** da agenda aparecem com som e voz na hora certa. |
 
-**Três visuais** para escolher em Ajustes → Notch → *Visual*: **Grafite** (sóbrio, cinza neutro), **Cristal** (vidro no estilo do iOS, com luz colorida e bordas brilhantes) e **Meia-noite** (o mesmo vidro em azul profundo).
+**Cinco visuais e três formatos** em Ajustes → Notch: **Grafite** (sóbrio, cinza neutro), **Cristal** (vidro no estilo do iOS, com luz colorida e bordas brilhantes), **Meia-noite** (vidro azul), **Aurora** (vidro violeta e rosa) e **Esmeralda** (vidro verde) — no formato **Notch** (preso à borda), **Ilha** (uma cápsula flutuando, como a Ilha Dinâmica) ou **Aba** (cantos quase retos).
 
-<img src="docs/images/notch-themes.png" width="820" alt="A pílula nos visuais Grafite, Cristal e Meia-noite">
+<img src="docs/images/notch-themes.png" width="820" alt="A pílula nos visuais Grafite, Cristal, Meia-noite, Aurora e Esmeralda e nos três formatos">
+
+Numa **ligação do WhatsApp**, o notch mostra quem é, o tempo e os botões (silenciar, desligar — ou atender e recusar):
+
+<img src="docs/images/notch-call.png" width="640" alt="Ligação do WhatsApp no notch">
 
 <img src="docs/images/panel-glass.png" width="820" alt="Painel no visual Cristal">
 
@@ -106,7 +110,8 @@ Clique no notch para abrir o painel.
 - **Conversa natural em português**, por voz (palavra de ativação “Jarvis”) ou texto.
 - **Cadastro da sua voz**: o “Jarvis” é reconhecido no próprio PC — na hora, sem internet e mesmo com barulho em volta.
 - **Conversa de verdade**: quando ele te faz uma pergunta, já fica ouvindo a resposta — não precisa dizer “Jarvis” de novo. E as respostas são faladas sem ler símbolos (nada de “asterisco”).
-- **WhatsApp dentro do notch**: veja as conversas, leia e responda sem abrir nada; por voz ele manda, lê e diz o que chegou — só quando você pede.
+- **Voz natural em qualquer PC**: vozes neurais da Microsoft (Antonio, Francisca, Thalita e outras), escolhidas em Ajustes — sem instalar nada. Um **som alto** avisa quando ele começa a te ouvir, para quando você está longe do PC.
+- **WhatsApp dentro do notch**, com o jeito do WhatsApp: conversas com fotos, busca e filtros, mensagens com áudio (▶) e imagens, gravação de áudio, mensagens antigas e ligações. Por voz ele manda, lê, diz o que chegou e liga — só quando você pede, confirmando antes.
 - **Executa de verdade**: toca a música exata, abre sites e clica neles num navegador próprio, controla volume e mídia, cria eventos, procura arquivos, anota no Obsidian…
 - **Atalhos instantâneos** para pedidos simples (“pausa”, “volume 30”, “bom dia”, “muda pro fone”) — respondem na hora, sem esperar a IA.
 - **“O que tem na minha tela?”** — ela olha a tela e explica (Ctrl+Alt+J).
@@ -194,7 +199,13 @@ Com o cadastro, o “Jarvis” é reconhecido **no próprio PC** (com o [Rustpot
 
 > Faça o cadastro **no lugar e com o microfone que você usa no dia a dia**. Mudou de microfone ou de sala? Clique em **Refazer cadastro**.
 
-**2.3 — Ajuste fino**
+**2.3 — A voz dele**
+
+Em **Ajustes → IA & Voz → Voz do Jarvis**: a **voz** (Antonio, Francisca, Thalita, vozes de Portugal e multilíngues — ou a do Windows, offline), a **velocidade** e o **som quando ele começa a ouvir** (Alto, Suave, Clássico ou Desligado). **Ouvir** toca um exemplo.
+
+<img src="docs/images/settings-voice-picker.png" width="720" alt="Voz do Jarvis">
+
+**2.4 — Ajuste fino**
 
 | Ajuste | Quando mexer |
 |---|---|
@@ -289,7 +300,8 @@ Ajustes → **Notch**:
 
 | Opção | O que faz |
 |---|---|
-| **Visual** | **Grafite**, **Cristal** ou **Meia-noite**. Muda na hora, sem reiniciar. |
+| **Visual** | **Grafite**, **Cristal**, **Meia-noite**, **Aurora** ou **Esmeralda**. Muda na hora, sem reiniciar. |
+| **Formato do notch** | **Notch** (preso à borda de cima), **Ilha** (cápsula flutuante) ou **Aba** (cantos quase retos). |
 | **Quando o notch aparece** | *Sempre visível* ou *Escondido* (aparece ao passar o mouse na borda de cima ou ao falar com o Jarvis). |
 | **Em qual monitor** | Principal, um específico, ou *os dois* (vai para o monitor onde está o mouse). |
 | **Clima** | Digite sua cidade e **Salvar** — ele mostra o que vai aparecer. |
@@ -304,15 +316,19 @@ Ajustes → **Notch**:
 
 ### 8. WhatsApp
 
-O WhatsApp fica **dentro do Jarvis**, numa aba do notch — sem navegador por fora.
+O WhatsApp fica **dentro do Jarvis**, numa aba do notch com o jeito do WhatsApp — sem navegador por fora. Ele carrega junto com o Jarvis.
 
 <img src="docs/images/panel-whatsapp-chat.png" width="720" alt="Conversa do WhatsApp no notch">
 
 1. Abra o notch → aba **WhatsApp**. Aparece um QR code.
 2. No celular: WhatsApp → **⋮ / Configurações → Aparelhos conectados → Conectar um aparelho** → aponte para o código.
-3. Pronto: a aba mostra suas conversas (não lidas em destaque). Clique numa para ler e responder ali mesmo.
+3. Pronto: à esquerda, suas conversas (com fotos, **busca** e os filtros **Tudo / Não lidas / Favoritas / Grupos**; **Carregar mais** no fim); à direita, a conversa aberta.
 
-Por voz: “manda no WhatsApp pra mim: comprar pão”, “lê a conversa com a Ana”, “tenho mensagem nova no WhatsApp?”. O Jarvis **só lê quando você pede**. Antes de enviar, ele repete **a pessoa e o texto** e pergunta *“Posso enviar?”*: responda **“sim”** (envia na hora), **“não”** (cancela) ou peça uma correção. O que você mesmo digita na aba vai direto.
+Na conversa: **▶** toca um áudio, as **imagens** aparecem sozinhas (**Baixar** salva em `Downloads\WhatsApp (Jarvis)`), **🎙** grava um áudio, **Carregar mensagens anteriores** traz as antigas, **📞 / 🎥** ligam. **⧉** abre o WhatsApp completo numa janela.
+
+Por voz: “manda no WhatsApp pra mim: comprar pão”, “lê a conversa com a Ana”, “tenho mensagem nova no WhatsApp?”, “liga para a Carolina”. O Jarvis **só lê quando você pede**. Antes de enviar ou ligar, ele confirma (*“Posso enviar?”*, *“Posso ligar?”*): responda **“sim”**, **“não”** ou peça uma correção. O que você mesmo digita na aba vai direto.
+
+> **Ligações:** usam as chamadas do WhatsApp Web, que ainda estão chegando aos poucos e às vezes falham do lado do WhatsApp (ficam em “Ligando…”). Ligação recebida aparece no notch com **Atender / Recusar**.
 
 > A sessão fica só no seu PC (`%LOCALAPPDATA%\OpenJarvis\whatsapp-web`). Para desconectar, remova o aparelho em *Aparelhos conectados* no celular.
 
@@ -346,6 +362,7 @@ Diga **“Jarvis”** e o pedido, clique no notch e digite, ou use **Ctrl+Alt+Es
 | “O que tem na minha tela?” | Lê a tela e explica |
 | “Minha internet tá lenta?” | Ping e teste de velocidade |
 | “Manda no WhatsApp pra Ana que vou atrasar” / “manda pra mim: comprar pão” | Ele confirma a pessoa e o texto e pergunta se pode enviar |
+| “Liga para a Carolina no WhatsApp” / “faz uma chamada de vídeo com o Pedro” | Ele pergunta se pode ligar; ao “sim”, a ligação aparece no notch |
 | “Tenho mensagem nova no WhatsApp?” / “lê a conversa com a Ana” | Só quando você pede |
 
 ### Atalhos de teclado
@@ -401,6 +418,9 @@ Exemplo — **Modo jogo**: gatilho `app:valorant`, passos `close:chrome, saida:f
 | Corta o pedido quando você respira | Ele espera ~1,8 s de silêncio. Fale sem pausas longas no meio; para pedidos grandes, faça em duas partes. |
 | WhatsApp: o QR code não aparece | Espere alguns segundos com a aba aberta (ele carrega o WhatsApp Web escondido). Se demorar, feche e abra o Jarvis. |
 | WhatsApp pede o QR code de novo | Acontece ao reinstalar ou se o aparelho foi removido no celular. Escaneie de novo e apague os aparelhos antigos em *Aparelhos conectados*. |
+| A voz dele está robótica | Ajustes → IA & Voz → **Voz do Jarvis**: escolha uma voz neural (Antonio, Francisca…). A “Voz do Windows” é a robótica, para quando não há internet. |
+| Não ouço quando ele começa a escutar | **Voz do Jarvis → Som quando ele começa a ouvir → Alto**. |
+| WhatsApp: ligação fica em “Ligando…” | É do WhatsApp Web (as ligações pelo navegador ainda são instáveis e, depois de muitas tentativas seguidas, o WhatsApp segura por algumas horas). Tente mais tarde ou ligue pelo celular. |
 | WhatsApp: “não achei o contato” | Diga o nome como está salvo no celular (ou o número com DDD). Ele mostra os nomes parecidos que encontrou. |
 | “Abrir no…” abre o editor errado / meu editor não aparece | Ajustes → IA & Voz → **Pastas e integrações** → *Editor de código dos projetos*. Se o seu não está na lista, instale-o no local padrão ou deixe o comando dele no PATH e reabra o Jarvis. |
 | Sem temperatura nos círculos | Abra o LibreHardwareMonitor. |
@@ -486,6 +506,7 @@ src-tauri/src/              back-end (Rust)
   spotify_api.rs            Spotify Web API (PKCE)
   jarvis_browser.rs         navegador controlado (Chrome DevTools Protocol)
   whatsapp.rs               WhatsApp Web oculto no próprio app (WebView2 + DevTools), aba e ferramentas
+  edge_tts.rs               voz neural da Microsoft (Edge “Ler em voz alta”), sem Python
   pc_monitor.rs             CPU/RAM/GPU/disco, FPS via ETW, ping, temperaturas
   audio.rs                  saídas de som, microfone
   app_update.rs             atualizações pelo GitHub Releases (assinadas)

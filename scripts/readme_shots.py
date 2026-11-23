@@ -107,7 +107,7 @@ def main() -> None:
         ("panel-spotify", "open=music"),
         ("panel-mail", "open=mail"),
         ("panel-whatsapp", "open=whatsapp"),
-        ("panel-whatsapp-chat", "open=whatsapp&wachat=Ana Souza"),
+        ("panel-whatsapp-chat", "open=whatsapp&wachat=Ana Souza&call=active&theme=glass"),
         ("panel-files", "open=files&fq=contrato"),
         ("panel-notes", "open=notes"),
         ("panel-github", "open=github"),
@@ -117,6 +117,7 @@ def main() -> None:
         ("settings-notch", "open=settings&sub=Notch&scroll=Informações no notch"),
         ("settings-voice", "open=settings&enrolled=1&scroll=Reconhecimento da sua voz"),
         ("settings-visual", "open=settings&sub=Notch&theme=glass"),
+        ("settings-voice-picker", "open=settings&scroll=Voz do Jarvis"),
         ("panel-glass", "open=home&widgets=1&theme=glass"),
         ("settings-folders", "open=settings&scroll=Editor de código dos projetos"),
     ]

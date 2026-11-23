@@ -21,12 +21,12 @@ import { BODY_FINISHES, BotEngine, hexToRGB, type BodyFinish } from "../mochi/en
 import type { Outfit } from "../mochi/wardrobe";
 import { CATEGORY_META, renderMemoryGraph } from "../dashboard/memory_graph";
 import { clear, h } from "../views/dom";
-import { Voice, asksBack } from "./voice";
+import { Voice, asksBack, listenCue } from "./voice";
 import { createMusicPanel } from "./music_panel";
 import { createAgendaPanel, eventSpan } from "./agenda_panel";
 import { createNotchWidgets } from "./notch_widgets";
 import { createToolTabs } from "./tool_tabs";
-import type { MediaNow, PcMetrics } from "../core/bridge";
+import type { MediaNow, PcMetrics, WaCall } from "../core/bridge";
 import type { CalEvent } from "../core/bridge";
 
 type TabId =
@@ -295,6 +295,8 @@ export async function startJarvisNotch(root: HTMLElement) {
     detail: "",
   };
   let toastReply = "";
+  /** A WhatsApp call in progress or ringing (the collapsed notch shows it). */
+  let waCall: WaCall | null = null;
   let toastTimer: number | null = null;
   let cleanupGraph: (() => void) | null = null;
   let lastClip = "";
@@ -350,6 +352,7 @@ export async function startJarvisNotch(root: HTMLElement) {
       activeTab = "chat";
       void askJarvis(prompt);
     },
+    toast: (text) => showToast(text, 6000),
   });
   /** Media playing in another app (YouTube, VLC…), for the pill. */
   let mediaNow: MediaNow | null = null;
@@ -473,7 +476,8 @@ export async function startJarvisNotch(root: HTMLElement) {
           Math.max(0, r.left - 4),
           0,
           r.width + 8,
-          r.height + 6,
+          // From the top edge (the "Ilha" shape floats a few pixels below it).
+          r.bottom + 6,
         );
       }
     });
@@ -653,8 +657,13 @@ export async function startJarvisNotch(root: HTMLElement) {
   function applyTheme() {
     const t = State.settings.jarvisTheme || "graphite";
     const cl = document.documentElement.classList;
-    cl.toggle("glass", t === "glass" || t === "midnight");
-    cl.toggle("midnight", t === "midnight");
+    cl.toggle("glass", ["glass", "midnight", "aurora", "emerald"].includes(t));
+    for (const v of ["midnight", "aurora", "emerald"]) cl.toggle(v, t === v);
+    const shape = State.settings.jarvisNotchShape || "notch";
+    cl.toggle("shape-island", shape === "island");
+    cl.toggle("shape-tab", shape === "tab");
+    // The window's clickable area follows the new shape.
+    requestAnimationFrame(() => pushVisibleRect());
   }
 
   function getAgentsList(): AgentOption[] {
@@ -2043,6 +2052,22 @@ export async function startJarvisNotch(root: HTMLElement) {
     });
 
     const theme = State.settings.jarvisTheme || "graphite";
+    const shape = State.settings.jarvisNotchShape || "notch";
+    const shapeOption = (id: string, title: string, desc: string) =>
+      h(
+        "button",
+        {
+          class: `brain-card ${shape === id ? "selected" : ""}`,
+          style: "text-align:left",
+          onclick: async () => {
+            await saveSettings({ ...State.settings, jarvisNotchShape: id });
+            render();
+          },
+        },
+        h("div", { class: `shape-swatch ${id}` }),
+        h("div", { style: "font-weight:600;font-size:12.5px;margin-bottom:4px", text: title }),
+        h("div", { style: "font-size:11.5px;color:var(--text-3);line-height:1.4", text: desc }),
+      );
     const themeOption = (id: string, title: string, desc: string) =>
       h(
         "button",
@@ -2067,6 +2092,16 @@ export async function startJarvisNotch(root: HTMLElement) {
         themeOption("graphite", "Grafite", "Sóbrio e plano, cinza neutro. O visual clássico do Jarvis."),
         themeOption("glass", "Cristal", "Vidro com brilho nas bordas e luz suave colorida, no estilo do iOS."),
         themeOption("midnight", "Meia-noite", "O mesmo vidro em tons de azul profundo."),
+        themeOption("aurora", "Aurora", "Vidro com luz violeta e rosa."),
+        themeOption("emerald", "Esmeralda", "Vidro com luz verde e turquesa."),
+      ),
+      sectionHead("Formato do notch"),
+      h(
+        "div",
+        { style: "display:grid;grid-template-columns:repeat(3,1fr);gap:10px" },
+        shapeOption("notch", "Notch", "Preso à borda de cima, cantos de baixo arredondados."),
+        shapeOption("island", "Ilha", "Uma cápsula flutuando logo abaixo da borda, como a Ilha Dinâmica."),
+        shapeOption("tab", "Aba", "Preso à borda, com cantos quase retos."),
       ),
       sectionHead("Quando o notch aparece"),
       h(
@@ -2359,6 +2394,102 @@ export async function startJarvisNotch(root: HTMLElement) {
       meter,
       hint,
       renderVocabField(),
+    );
+  }
+
+  /** Which voice the Jarvis speaks with, and how fast. */
+  let ttsVoices: { id: string; label: string }[] | null = null;
+  function renderVoicePicker(): HTMLElement {
+    const voice = State.settings.jarvisTtsVoice || "pt-BR-AntonioNeural";
+    const rate = State.settings.jarvisTtsRate ?? 8;
+    const select = h("select", { class: "input", style: "width:100%;height:34px;color-scheme:dark" }) as HTMLSelectElement;
+    const fill = (list: { id: string; label: string }[]) => {
+      select.replaceChildren(
+        ...list.map((v) => h("option", { value: v.id, text: v.label }) as HTMLOptionElement),
+        h("option", { value: "windows", text: "Voz do Windows (offline, mais robótica)" }) as HTMLOptionElement,
+      );
+      select.value = [...select.options].some((o) => o.value === voice) ? voice : "pt-BR-AntonioNeural";
+    };
+    if (ttsVoices) fill(ttsVoices);
+    else {
+      select.append(h("option", { value: voice, text: "Carregando vozes…" }) as HTMLOptionElement);
+      void Bridge.ttsVoices().then((list) => {
+        ttsVoices = list ?? [];
+        fill(ttsVoices);
+      });
+    }
+    const status = h("span", { class: "tt-row-meta" });
+    const sample = async () => {
+      status.textContent = "Falando…";
+      await Voice.speak("Olá! Esta é a minha voz. Em que posso te ajudar hoje?");
+      status.textContent = "";
+    };
+    select.addEventListener("change", async () => {
+      await saveSettings({ ...State.settings, jarvisTtsVoice: select.value });
+      void sample();
+    });
+    const speeds: [number, string][] = [
+      [-10, "Calma"],
+      [0, "Normal"],
+      [8, "Ágil"],
+      [20, "Rápida"],
+    ];
+    const chips = h(
+      "div",
+      { class: "tt-chips" },
+      ...speeds.map(([v, label]) =>
+        h("button", {
+          class: `tt-chip ${rate === v ? "on" : ""}`,
+          text: label,
+          onclick: async () => {
+            await saveSettings({ ...State.settings, jarvisTtsRate: v });
+            render();
+            void sample();
+          },
+        }),
+      ),
+    );
+    return h(
+      "div",
+      { class: "tt-card", style: "margin-bottom:8px" },
+      h("div", { class: "tt-card-title", text: "Voz" }),
+      select,
+      h("div", { class: "tt-card-title", style: "margin-top:14px", text: "Velocidade" }),
+      chips,
+      h("div", { class: "tt-card-title", style: "margin-top:14px", text: "Som quando ele começa a ouvir" }),
+      h(
+        "div",
+        { class: "tt-chips" },
+        ...(
+          [
+            ["loud", "Alto"],
+            ["soft", "Suave"],
+            ["classic", "Clássico"],
+            ["off", "Desligado"],
+          ] as const
+        ).map(([v, label]) =>
+          h("button", {
+            class: `tt-chip ${(State.settings.jarvisListenChime || "loud") === v ? "on" : ""}`,
+            text: label,
+            onclick: async () => {
+              await saveSettings({ ...State.settings, jarvisListenChime: v });
+              listenCue();
+              render();
+            },
+          }),
+        ),
+      ),
+      h(
+        "div",
+        { class: "tt-volume", style: "margin-top:10px" },
+        h("span", {
+          class: "tt-hint",
+          style: "margin:0",
+          text: "Vozes neurais da Microsoft, as mesmas do \"Ler em voz alta\" do Edge — naturais em qualquer PC, sem instalar nada. Precisam de internet.",
+        }),
+        h("button", { class: "btn btn-sm", text: "Ouvir", onclick: () => void sample() }),
+      ),
+      status,
     );
   }
 
@@ -3265,6 +3396,8 @@ export async function startJarvisNotch(root: HTMLElement) {
           }),
         ),
       ),
+      sectionHead("Voz do Jarvis"),
+      renderVoicePicker(),
       sectionHead("Reconhecimento da sua voz"),
       renderWakeEnroll(),
       sectionHead("Microfone"),
@@ -3306,7 +3439,7 @@ export async function startJarvisNotch(root: HTMLElement) {
       const runningAction = hasRunningAction();
       const isExecuting = !isListening && (liveStatus.phase === "executing" || Boolean(runningAction));
       const isThinking = !isListening && !isExecuting && (liveStatus.phase === "thinking" || sending);
-      const busy = isListening || isExecuting || isThinking || Boolean(toastReply);
+      const busy = isListening || isExecuting || isThinking || Boolean(toastReply) || Boolean(waCall);
 
       // Hidden mode, nothing going on: only the invisible wake strip remains.
       if (notchHidden() && !revealed && !busy) {
@@ -3338,6 +3471,53 @@ export async function startJarvisNotch(root: HTMLElement) {
       // Something to show: the window must be full size.
       setWindowCollapsed(false);
       if (notchHidden() && busy) animatePill = animatePill || !revealed;
+
+      // A WhatsApp call: the larger bar, with who, how long and the controls
+      // (listening / thinking take the bar back while they last).
+      if (waCall && !isListening && !isExecuting && !isThinking) {
+        const c = waCall;
+        const act = (action: string) => (e: Event) => {
+          e.stopPropagation();
+          void Bridge.whatsappCallAction(action)
+            .then((next) => {
+              waCall = next.state === "none" ? null : next;
+              render();
+            })
+            .catch(() => {});
+        };
+        const round = (text: string, action: string, cls: string, title: string) =>
+          h("button", { class: `call-pill-btn ${cls}`, text, title, onclick: act(action) });
+        const callBar = h(
+          "div",
+          { class: `notch-voice-bar call-pill ${c.state}` },
+          h(
+            "div",
+            { class: "notch-pill-left", onclick: () => setExpanded(true, "whatsapp"), style: "cursor:pointer;flex:1" },
+            h("div", { class: "call-pill-icon", text: "✆" }),
+            h(
+              "div",
+              { class: "notch-status-copy" },
+              h("span", { class: "notch-pill-title", text: c.name || "Chamada do WhatsApp" }),
+              h("span", { class: "notch-pill-sub", text: c.state === "incoming" ? "Ligando para você…" : c.time || c.status || "Chamando…" }),
+            ),
+          ),
+          h(
+            "div",
+            { class: "notch-pill-right call-pill-actions" },
+            ...(c.state === "incoming"
+              ? [round("✕", "decline", "decline", "Recusar"), round("✆", "accept", "accept", "Atender")]
+              : [round(c.micOff ? "🔇" : "🎙", "mute", c.micOff ? "on" : "", c.micOff ? "Ativar microfone" : "Silenciar"), round("✆", "hangup", "hangup", "Desligar")]),
+          ),
+        );
+        if (animatePill) {
+          callBar.classList.add("appear");
+          animatePill = false;
+        }
+        root.append(callBar);
+        pruneDressedMochis();
+        pushRect(callBar);
+        return;
+      }
 
       if (busy) {
         const botSlot = createDressedMochi(24, mColor, outfit, bState);
@@ -3814,6 +3994,14 @@ export async function startJarvisNotch(root: HTMLElement) {
   }
   // Transcription limit and similar: a short note in the notch.
   Voice.onNotice = (text) => showToast(text, 9000);
+  // A WhatsApp call, for the collapsed notch's call bar.
+  void Bridge.onWhatsappCall((c) => {
+    const changed = (waCall?.state ?? "none") !== c.state;
+    waCall = c.state === "none" ? null : c;
+    if (changed) animatePill = true;
+    if (!expanded) render();
+  });
+
   // A new version on GitHub: a note in the notch (once per version) and the card in Ajustes.
   void Bridge.onUpdateAvailable((u) => {
     const first = updateInfo?.version !== u.version;

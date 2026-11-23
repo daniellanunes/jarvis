@@ -128,6 +128,14 @@ pub struct Settings {
     pub jarvis_code_editor: String,
     /// The notch's look: "graphite" (default) | "glass" (Cristal) | "midnight".
     pub jarvis_theme: String,
+    /// The Jarvis voice (edge_tts.rs id), or "windows" for the offline one.
+    pub jarvis_tts_voice: String,
+    /// How much faster the voice speaks, in percent (negative = slower).
+    pub jarvis_tts_rate: i32,
+    /// The notch's shape: "notch" (default) | "island" | "tab".
+    pub jarvis_notch_shape: String,
+    /// The sound when the Jarvis starts listening: "loud" | "soft" | "classic" | "off".
+    pub jarvis_listen_chime: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -212,6 +220,10 @@ impl Default for Settings {
             jarvis_voice_vocab: String::new(),
             jarvis_code_editor: String::new(),
             jarvis_theme: "graphite".into(),
+            jarvis_tts_voice: "pt-BR-AntonioNeural".into(),
+            jarvis_tts_rate: 8,
+            jarvis_notch_shape: "notch".into(),
+            jarvis_listen_chime: "loud".into(),
         }
     }
 }
@@ -517,7 +529,11 @@ mod tests {
   "jarvisWakeThreshold": 0.625,
   "jarvisVoiceVocab": "FC 26, Daniel",
   "jarvisCodeEditor": "C:\\Editor\\editor.exe",
-  "jarvisTheme": "glass"
+  "jarvisTheme": "glass",
+  "jarvisTtsVoice": "pt-BR-FranciscaNeural",
+  "jarvisTtsRate": -5,
+  "jarvisNotchShape": "island",
+  "jarvisListenChime": "soft"
 }"##;
 
     fn custom() -> Value {
@@ -950,6 +966,10 @@ mod tests {
                 "jarvisVoiceVocab",
                 "jarvisCodeEditor",
                 "jarvisTheme",
+                "jarvisTtsVoice",
+                "jarvisTtsRate",
+                "jarvisNotchShape",
+                "jarvisListenChime",
             ]
         );
         let _ = std::fs::remove_dir_all(&dir);

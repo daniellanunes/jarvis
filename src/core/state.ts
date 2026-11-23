@@ -198,6 +198,14 @@ export interface Settings {
   jarvisCodeEditor?: string;
   /** The notch's look: "graphite" | "glass" (Cristal) | "midnight". */
   jarvisTheme?: string;
+  /** The Jarvis voice (neural voice id), or "windows" for the offline one. */
+  jarvisTtsVoice?: string;
+  /** How much faster the voice speaks, in percent. */
+  jarvisTtsRate?: number;
+  /** The notch's shape: "notch" | "island" (floating capsule) | "tab". */
+  jarvisNotchShape?: string;
+  /** The sound when the Jarvis starts listening: "loud" | "soft" | "classic" | "off". */
+  jarvisListenChime?: string;
   /** "local": the enrolled "Jarvis" spotted on the PC; "cloud": transcribed sentences. */
   jarvisWakeEngine?: "local" | "cloud";
   /** Local wake word: 0.35 (easier) – 0.7 (stricter). */
@@ -256,6 +264,10 @@ export const DEFAULT_SETTINGS: Settings = {
   jarvisVoiceVocab: "",
   jarvisCodeEditor: "",
   jarvisTheme: "graphite",
+  jarvisTtsVoice: "pt-BR-AntonioNeural",
+  jarvisTtsRate: 8,
+  jarvisNotchShape: "notch",
+  jarvisListenChime: "loud",
   jarvisWakeEngine: "local",
   jarvisWakeThreshold: 0.45,
 };

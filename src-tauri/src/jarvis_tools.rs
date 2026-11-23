@@ -111,6 +111,14 @@ pub fn declarations() -> Vec<Value> {
             }, "required": ["chat"]}
         }),
         json!({
+            "name": "whatsapp_call",
+            "description": "Faz uma ligação (ou chamada de vídeo) pelo WhatsApp. NÃO liga na hora: pergunte ao usuário se pode ligar; ao \"sim\" a ligação é feita. Só quando o usuário pedir.",
+            "parameters": {"type": "OBJECT", "properties": {
+                "to": {"type": "STRING", "description": "Nome do contato ou número."},
+                "video": {"type": "BOOLEAN", "description": "true para chamada de vídeo."}
+            }, "required": ["to"]}
+        }),
+        json!({
             "name": "whatsapp_unread",
             "description": "Lista as conversas do WhatsApp com mensagens não lidas (nome, quantas e a última). Só quando o usuário perguntar.",
             "parameters": {"type": "OBJECT", "properties": {}}
@@ -146,6 +154,7 @@ pub fn status_line(name: &str, args: &Value) -> Option<(String, String)> {
         "whatsapp_send" => ("Preparando mensagem…".into(), s("to")),
         "whatsapp_read" => ("Lendo o WhatsApp…".into(), s("chat")),
         "whatsapp_unread" => ("Vendo o WhatsApp…".into(), String::new()),
+        "whatsapp_call" => ("Preparando a ligação…".into(), s("to")),
         _ => return None,
     })
 }
@@ -364,6 +373,13 @@ pub async fn run(
             None => Err("Qual conversa?".into()),
         },
         "whatsapp_unread" => crate::whatsapp::unread().await,
+        "whatsapp_call" => match s("to") {
+            Some(to) => Ok(format!(
+                "Ligação PREPARADA, ainda não feita. Responda ao usuário exatamente: {}",
+                crate::whatsapp::prepare_call(&to, args["video"].as_bool().unwrap_or(false))
+            )),
+            None => Err("Para quem?".into()),
+        },
         _ => return None,
     };
     Some(match r {
