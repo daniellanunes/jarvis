@@ -38,6 +38,7 @@ mod migrate;
 mod net;
 mod notes;
 mod openai_compat;
+mod pc_control;
 mod pc_monitor;
 mod pipe;
 mod platform;

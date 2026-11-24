@@ -56,6 +56,52 @@ pub fn declarations() -> Vec<Value> {
             }, "required": ["path"]}
         }),
         json!({
+            "name": "app_read",
+            "description": "Lê o que aparece na janela de um programa aberto no PC: textos, botões, campos e o que está neles (ex.: o resultado da calculadora, o texto do Bloco de Notas). Use depois de agir num programa para conferir.",
+            "parameters": {"type": "OBJECT", "properties": {
+                "app": {"type": "STRING", "description": "Nome do programa ou parte do título da janela ('calculadora', 'bloco de notas', 'excel'). Vazio = janela em foco."}
+            }}
+        }),
+        json!({
+            "name": "app_type",
+            "description": "Digita texto e/ou aperta teclas numa janela de programa aberto, como uma pessoa no teclado. Ex.: calculadora: text '125*8='; salvar: keys 'ctrl+s'; keys aceita combinações separadas por espaço ('ctrl+a delete', 'alt+f4', 'enter', 'tab', 'f5').",
+            "parameters": {"type": "OBJECT", "properties": {
+                "app": {"type": "STRING", "description": "Nome do programa ou parte do título."},
+                "text": {"type": "STRING", "description": "Texto a digitar (\\n = Enter)."},
+                "keys": {"type": "STRING", "description": "Teclas/atalhos depois do texto."},
+                "field": {"type": "STRING", "description": "Nome do campo onde digitar (opcional)."}
+            }, "required": ["app"]}
+        }),
+        json!({
+            "name": "app_click",
+            "description": "Clica num botão, menu, aba ou item de um programa aberto pelo nome que aparece nele (use app_read para ver os nomes).",
+            "parameters": {"type": "OBJECT", "properties": {
+                "app": {"type": "STRING"},
+                "target": {"type": "STRING", "description": "Nome do botão/item, ex.: 'Igual a', 'Arquivo', 'Salvar'."}
+            }, "required": ["app", "target"]}
+        }),
+        json!({
+            "name": "app_list",
+            "description": "Lista as janelas de programas abertas no PC.",
+            "parameters": {"type": "OBJECT", "properties": {}}
+        }),
+        json!({
+            "name": "file_read",
+            "description": "Lê o conteúdo de um arquivo de texto (txt, md, csv, json, código…) pelo caminho completo.",
+            "parameters": {"type": "OBJECT", "properties": {"path": {"type": "STRING"}}, "required": ["path"]}
+        }),
+        json!({
+            "name": "file_write",
+            "description": "Cria ou edita um arquivo de texto. mode 'overwrite' (escreve tudo), 'append' (acrescenta no fim) ou 'replace' (troca o trecho find por replace). A versão anterior fica guardada numa cópia de segurança.",
+            "parameters": {"type": "OBJECT", "properties": {
+                "path": {"type": "STRING", "description": "Caminho completo."},
+                "mode": {"type": "STRING", "enum": ["overwrite", "append", "replace"]},
+                "content": {"type": "STRING"},
+                "find": {"type": "STRING"},
+                "replace": {"type": "STRING"}
+            }, "required": ["path", "mode"]}
+        }),
+        json!({
             "name": "notes_search",
             "description": "Busca notas no Obsidian do usuário (título e texto). Vazio = notas mais recentes.",
             "parameters": {"type": "OBJECT", "properties": {"query": {"type": "STRING"}}}
@@ -130,6 +176,7 @@ pub fn declarations() -> Vec<Value> {
 pub const PROMPT_RULES: &str = r#"
 8. Gmail: SÓ use `gmail_search`/`gmail_read`/`gmail_draft` quando o usuário pedir explicitamente algo sobre e-mail. Nunca mencione, conte ou resuma e-mails por iniciativa própria. Para responder/escrever, crie o rascunho com `gmail_draft`; com send=true o envio fica aguardando Permitir — avise isso.
 9. WhatsApp: SÓ use as ferramentas de WhatsApp quando o usuário pedir explicitamente; nunca leia, conte ou comente mensagens por iniciativa própria. Enviar: chame `whatsapp_send` ("manda pra mim" → to "eu"); ele só PREPARA — repita ao usuário a pessoa e o texto exato e pergunte "Posso enviar?". Se o usuário confirmar, chame `whatsapp_send` de novo com os mesmos dados; se pedir mudança, chame com o texto novo e pergunte de novo. Ler uma conversa: `whatsapp_read`. "Tenho mensagem nova?": `whatsapp_unread`. Escreva a mensagem como o usuário escreveria e resuma o que leu em poucas frases.
+11. Programas do PC: para usar um programa, abra com `open_target` (se não estiver aberto), aja com `app_type` (digitar/atalhos) ou `app_click` (botões pelo nome) e confira com `app_read`, dizendo o resultado. Ex.: "calcula 125 vezes 8 na calculadora" → open_target "calc", app_type app "calculadora" text "125*8=", app_read "calculadora" → diga o valor. Antes de algo que apaga, envia, compra ou fecha sem salvar, pergunte ao usuário. Arquivos de texto: `file_read` antes de editar e `file_write` para salvar (a versão anterior fica guardada; avise onde).
 10. "Bom dia", "como está meu dia", "o que tenho hoje": chame `daily_briefing` e responda em 2-4 frases naturais.
 11. Arquivos: `file_search` e depois `file_open`. Notas/Obsidian: `notes_search`, `notes_read`, `notes_write` ("anota isso…").
 12. Som: `audio_output` para trocar fone/caixa; `mic_mute` para o microfone; `set_volume` para volume. Internet lenta/caiu: `internet_status`. GitHub: `github_overview`.
@@ -145,6 +192,12 @@ pub fn status_line(name: &str, args: &Value) -> Option<(String, String)> {
         "daily_briefing" => ("Montando o resumo do dia…".into(), String::new()),
         "file_search" => ("Procurando arquivos…".into(), s("query")),
         "file_open" => ("Abrindo arquivo…".into(), s("path")),
+        "app_read" => ("Lendo a janela…".into(), s("app")),
+        "app_type" => ("Digitando…".into(), s("app")),
+        "app_click" => ("Clicando…".into(), s("target")),
+        "app_list" => ("Vendo as janelas abertas…".into(), String::new()),
+        "file_read" => ("Lendo o arquivo…".into(), s("path")),
+        "file_write" => ("Editando o arquivo…".into(), s("path")),
         "notes_search" | "notes_read" => ("Lendo suas notas…".into(), s("query")),
         "notes_write" => ("Anotando no Obsidian…".into(), s("title")),
         "audio_output" => ("Trocando a saída de som…".into(), s("device")),
@@ -330,6 +383,22 @@ pub async fn run(
             tauri::async_runtime::spawn_blocking(move || crate::file_search::search(&q, 15)).await.unwrap_or_else(|e| Err(e.to_string())).map(|h| crate::file_search::describe(&h))
         }
         "file_open" => crate::file_search::open(&s("path").unwrap_or_default(), args["reveal"].as_bool().unwrap_or(false)),
+        "app_read" | "app_type" | "app_click" | "app_list" | "file_read" | "file_write" => {
+            let (name, a) = (name.to_string(), args.clone());
+            tauri::async_runtime::spawn_blocking(move || {
+                let s = |k: &str| a[k].as_str().unwrap_or("").to_string();
+                match name.as_str() {
+                    "app_read" => crate::pc_control::read(&s("app")),
+                    "app_type" => crate::pc_control::type_into(&s("app"), &s("text"), &s("keys"), &s("field")),
+                    "app_click" => crate::pc_control::click(&s("app"), &s("target")),
+                    "app_list" => Ok(crate::pc_control::list()),
+                    "file_read" => crate::pc_control::read_file(&s("path")),
+                    _ => crate::pc_control::write_file(&s("path"), &s("mode"), &s("content"), &s("find"), &s("replace")),
+                }
+            })
+            .await
+            .unwrap_or_else(|e| Err(e.to_string()))
+        }
         "notes_search" => {
             let q = s("query").unwrap_or_default();
             tauri::async_runtime::spawn_blocking(move || crate::notes::search(&q, 10)).await.unwrap_or_else(|e| Err(e.to_string())).map(|h| crate::notes::describe(&h))

@@ -110,6 +110,7 @@ Clique no notch para abrir o painel.
 - **Conversa natural em português**, por voz (palavra de ativação “Jarvis”) ou texto.
 - **Cadastro da sua voz**: o “Jarvis” é reconhecido no próprio PC — na hora, sem internet e mesmo com barulho em volta.
 - **Conversa de verdade**: quando ele te faz uma pergunta, já fica ouvindo a resposta — não precisa dizer “Jarvis” de novo. E as respostas são faladas sem ler símbolos (nada de “asterisco”).
+- **Usa os programas do PC**: abre a Calculadora e faz a conta, escreve no Bloco de Notas, clica em botões pelo nome, usa atalhos e lê o que aparece na janela; também lê e edita arquivos de texto (sempre guardando a versão anterior).
 - **Voz natural em qualquer PC**: vozes neurais da Microsoft (Antonio, Francisca, Thalita e outras), escolhidas em Ajustes — sem instalar nada. Um **som alto** avisa quando ele começa a te ouvir, para quando você está longe do PC.
 - **WhatsApp dentro do notch**, com o jeito do WhatsApp: conversas com fotos, busca e filtros, mensagens com áudio (▶) e imagens, gravação de áudio, mensagens antigas e ligações. Por voz ele manda, lê, diz o que chegou e liga — só quando você pede, confirmando antes.
 - **Executa de verdade**: toca a música exata, abre sites e clica neles num navegador próprio, controla volume e mídia, cria eventos, procura arquivos, anota no Obsidian…
@@ -363,6 +364,9 @@ Diga **“Jarvis”** e o pedido, clique no notch e digite, ou use **Ctrl+Alt+Es
 | “Minha internet tá lenta?” | Ping e teste de velocidade |
 | “Manda no WhatsApp pra Ana que vou atrasar” / “manda pra mim: comprar pão” | Ele confirma a pessoa e o texto e pergunta se pode enviar |
 | “Liga para a Carolina no WhatsApp” / “faz uma chamada de vídeo com o Pedro” | Ele pergunta se pode ligar; ao “sim”, a ligação aparece no notch |
+| “Calcula 347 vezes 12 na calculadora” | Abre a Calculadora, digita a conta e fala o resultado |
+| “Abre o bloco de notas e escreve: lista de compras” / “salva com ctrl+s” | Digita e usa atalhos no programa aberto |
+| “No arquivo notas.txt troca leite por café” | Edita o arquivo e guarda a versão anterior em `%LOCALAPPDATA%\OpenJarvis\backups` |
 | “Tenho mensagem nova no WhatsApp?” / “lê a conversa com a Ana” | Só quando você pede |
 
 ### Atalhos de teclado
@@ -507,6 +511,7 @@ src-tauri/src/              back-end (Rust)
   jarvis_browser.rs         navegador controlado (Chrome DevTools Protocol)
   whatsapp.rs               WhatsApp Web oculto no próprio app (WebView2 + DevTools), aba e ferramentas
   edge_tts.rs               voz neural da Microsoft (Edge “Ler em voz alta”), sem Python
+  pc_control.rs             programas do PC (UI Automation: ler janela, clicar, digitar) e edição de arquivos
   pc_monitor.rs             CPU/RAM/GPU/disco, FPS via ETW, ping, temperaturas
   audio.rs                  saídas de som, microfone
   app_update.rs             atualizações pelo GitHub Releases (assinadas)
