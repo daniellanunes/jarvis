@@ -110,7 +110,6 @@ def main() -> None:
         ("panel-whatsapp-chat", "open=whatsapp&wachat=Ana Souza&call=active&theme=glass"),
         ("panel-files", "open=files&fq=contrato"),
         ("panel-notes", "open=notes"),
-        ("panel-github", "open=github"),
         ("panel-pc", "open=pc&scroll=end"),
         ("panel-routines", "open=tasks&sub=Rotinas"),
         ("settings-ai", "open=settings&scroll=Trocar de IA automaticamente"),
@@ -140,7 +139,7 @@ def main() -> None:
     sheet.save(OUT / "notch-themes.png", optimize=True)
     print("ok notch-themes")
 
-    tour = ["panel-home", "panel-agenda", "panel-spotify", "panel-mail", "panel-files", "panel-notes", "panel-github", "panel-pc"]
+    tour = ["panel-home", "panel-agenda", "panel-spotify", "panel-mail", "panel-files", "panel-notes", "panel-whatsapp", "panel-pc"]
     gif("tour", [imgs[n].crop(box) for n in tour], 1600, 900)
 
 

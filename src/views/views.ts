@@ -11,7 +11,7 @@ import { createMiniBot, pruneMiniBots } from "../mochi/minibots";
 import { buildPrompt } from "./chat";
 import { buildChoose, buildUpload, buildUploading } from "./upload";
 import { renderIntegrationCard, type IntegrationCardHooks } from "./integrations";
-import { highlightRow, listRows, openRow } from "./github";
+import { highlightRow, listRows, openRow } from "./list_nav";
 import { pillDefinition, sessionSubtitle } from "../core/pills";
 import {
   PlanCard, buildPlanPill, claudePillVisible, codexPillVisible, planCardOpen, refreshCodexPlanUsage,
@@ -471,7 +471,7 @@ export function buildOverview(actions: ViewActions): ViewHost {
 
       jump.style.display = detailOpen || mode === "plan" || mode === "diff" ? "none" : "";
 
-      // Ctrl+↓ Ctrl+↑ walk the open GitHub list (cardItemCount / cardSelection).
+      // Ctrl+↓ Ctrl+↑ walk the open card list (cardItemCount / cardSelection).
       const rows = mode === "card" ? listRows(leftBody) : [];
       State.cardItemCount = rows.length;
       if (State.cardSelection != null && State.cardSelection >= rows.length) State.cardSelection = null;

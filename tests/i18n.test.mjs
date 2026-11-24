@@ -63,21 +63,21 @@ test("placeholders are filled in every language, unknown ones are left as they a
 });
 
 test("plurals follow each language's rules", () => {
-  const files = (n) => tn("{count} repo", "{count} repos", n);
-  assert.equal(files(1), "1 repo");
-  assert.equal(files(3), "3 repos");
+  const files = (n) => tn("{count} model", "{count} models", n);
+  assert.equal(files(1), "1 model");
+  assert.equal(files(3), "3 models");
   inLanguage("fr", () => {
-    assert.equal(files(1), "1 dépôt");
-    assert.equal(files(0), "0 dépôt"); // French: 0 and 1 are singular
-    assert.equal(files(5), "5 dépôts");
+    assert.equal(files(1), "1 modèle");
+    assert.equal(files(0), "0 modèle"); // French: 0 and 1 are singular
+    assert.equal(files(5), "5 modèles");
   });
   inLanguage("ru", () => {
-    assert.equal(files(1), "1 репозиторий");
-    assert.equal(files(3), "3 репозитория");
-    assert.equal(files(5), "5 репозиториев");
-    assert.equal(files(21), "21 репозиторий");
+    assert.equal(files(1), "1 модель");
+    assert.equal(files(3), "3 модели");
+    assert.equal(files(5), "5 моделей");
+    assert.equal(files(21), "21 модель");
   });
-  inLanguage("zh-Hans", () => assert.equal(files(7), "7 个仓库"));
+  inLanguage("zh-Hans", () => assert.equal(files(7), "7 个模型"));
   // The Mac's plural entry: Spanish one/other.
   inLanguage("es", () => {
     assert.equal(tn("✓ Connected · {count} model", "✓ Connected · {count} models", 1), "✓ Conectado · 1 modelo");
@@ -244,7 +244,7 @@ test("every string the code shows is translated in every language", () => {
 test("lookup() answers from the merged tables", () => {
   assert.equal(lookup("Allow", "en"), undefined);
   assert.equal(lookup("Allow", "pt-BR"), "Permitir");
-  assert.equal(typeof lookup("{count} repos", "ru"), "object");
+  assert.equal(typeof lookup("{count} models", "ru"), "object");
 });
 
 // ── No English left outside t() ───────────────────────────────────────────────

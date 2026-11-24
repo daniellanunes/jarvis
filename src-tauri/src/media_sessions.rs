@@ -14,6 +14,7 @@ pub struct MediaNow {
     pub playing: bool,
     /// "Chrome", "VLC", "Spotify"…
     pub app: String,
+    pub album: String,
 }
 
 /// "Microsoft.ZuneVideo_8wekyb3d8bbwe!Microsoft.ZuneVideo" / "chrome.exe" → a short name.
@@ -99,12 +100,33 @@ mod win {
             artist: props.Artist().map(|t| t.to_string()).unwrap_or_default(),
             playing,
             app: s.SourceAppUserModelId().map(|a| app_label(&a.to_string())).unwrap_or_default(),
+            album: props.AlbumTitle().map(|t| t.to_string()).unwrap_or_default(),
+        })
+    }
+
+    /// The session showing this title (the one on the notch's card), if any.
+    fn by_title(m: &Manager, title: &str) -> Option<Session> {
+        let want = title.trim().to_lowercase();
+        if want.is_empty() {
+            return None;
+        }
+        m.GetSessions().ok()?.into_iter().find(|s| {
+            s.TryGetMediaPropertiesAsync()
+                .ok()
+                .and_then(|op| op.get().ok())
+                .and_then(|p| p.Title().ok())
+                .is_some_and(|t| t.to_string().trim().to_lowercase() == want)
         })
     }
 
     pub fn control(action: &str) -> Result<String, String> {
+        control_for(action, "")
+    }
+
+    /// Like `control`, on the session of `title` when there is one.
+    pub fn control_for(action: &str, title: &str) -> Result<String, String> {
         let m = manager().ok_or("Nenhuma mídia aberta.")?;
-        let s = pick(&m).ok_or("Nenhuma mídia aberta.")?;
+        let s = by_title(&m, title).or_else(|| pick(&m)).ok_or("Nenhuma mídia aberta.")?;
         let op = match action {
             "play" => s.TryPlayAsync(),
             "pause" => s.TryPauseAsync(),
@@ -138,6 +160,9 @@ mod win {
     pub fn control(_: &str) -> Result<String, String> {
         Err("Só no Windows".into())
     }
+    pub fn control_for(_: &str, _: &str) -> Result<String, String> {
+        Err("Só no Windows".into())
+    }
 }
 
 pub use win::now;
@@ -166,6 +191,24 @@ pub async fn media_now() -> Option<MediaNow> {
     tauri::async_runtime::spawn_blocking(now).await.ok().flatten()
 }
 
+/// The notch's player buttons: the card's own session (by its title), else
+/// the Spotify account, else the keyboard's media keys.
+#[tauri::command]
+pub async fn player_control(action: String, title: Option<String>) -> Result<String, String> {
+    let (a, t) = (action.clone(), title.unwrap_or_default());
+    let direct = tauri::async_runtime::spawn_blocking(move || win::control_for(&a, &t)).await.map_err(|e| e.to_string())?;
+    match direct {
+        Ok(msg) => Ok(msg),
+        Err(e) => {
+            crate::log::line(format!("player: sessão de mídia não respondeu ({e}); tentando outro caminho"));
+            if let Some(msg) = crate::jarvis_brain::api_media_control(&action).await {
+                return Ok(msg);
+            }
+            crate::jarvis_pc::jarvis_media_control(action)
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn media_control(action: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || control(&action)).await.map_err(|e| e.to_string())?
@@ -188,5 +231,22 @@ mod tests {
     #[ignore]
     fn reads_this_pc_media() {
         println!("{:?}", now());
+    }
+}
+
+#[cfg(all(test, windows))]
+mod live {
+    /// Toggles the current track twice (back to how it was).
+    /// `cargo test --lib media_sessions::live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn the_card_buttons_reach_the_track_shown() {
+        let before = super::now();
+        println!("antes: {before:?}");
+        let title = before.as_ref().map(|m| m.title.clone()).unwrap_or_default();
+        println!("play/pause: {:?}", super::win::control_for("play_pause", &title));
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        println!("depois: {:?}", super::now());
+        println!("de volta: {:?}", super::win::control_for("play_pause", &title));
     }
 }

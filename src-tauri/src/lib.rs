@@ -13,7 +13,6 @@ mod desktop;
 mod edge_tts;
 mod file_search;
 mod files;
-mod github;
 mod gmail;
 mod google_calendar;
 mod hooks;
@@ -141,7 +140,6 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
         let collapsed = shared.gate.collapsed.load(Ordering::Relaxed);
         island::apply_geometry(&app, &settings.screen, collapsed);
     }
-    integrations::settings_saved(&app, &settings.active_integrations);
     spotify::sync(&app, &settings.active_integrations);
     if shortcuts_changed {
         shortcuts::apply(&app, &settings.shortcuts);
@@ -567,29 +565,17 @@ fn secret_present(key: String) -> bool {
 }
 
 #[tauri::command]
-fn secret_set(app: AppHandle, key: String, value: String) -> Result<(), String> {
+fn secret_set(key: String, value: String) -> Result<(), String> {
     // Bound to its server's address: only local_set_key may store it.
     if key == local_chat::CUSTOM_KEY {
         return Err("use local_set_key".into());
     }
-    let before = (key == "github-token").then(|| secrets::get(&key));
-    secrets::set(&key, &value)?;
-    if let Some(before) = before {
-        if secrets::get(&key) != before {
-            integrations::github_token_changed(&app);
-        }
-    }
-    Ok(())
+    secrets::set(&key, &value)
 }
 
 #[tauri::command]
-fn secret_clear(app: AppHandle, key: String) -> Result<(), String> {
-    let had = key == "github-token" && secrets::present(&key);
-    secrets::clear(&key)?;
-    if had {
-        integrations::github_token_changed(&app);
-    }
-    Ok(())
+fn secret_clear(key: String) -> Result<(), String> {
+    secrets::clear(&key)
 }
 
 /// Opens the configured n8n instance — the URL lives in the Credential Manager.
@@ -604,13 +590,6 @@ fn open_n8n() {
 #[tauri::command]
 async fn refresh_integration(app: AppHandle, id: String) {
     integrations::poll_once(app, &id).await;
-}
-
-/// The GitHub card was opened: refetch its `section` ("pulse" or "activity")
-/// if it is stale. The pollers still decline while the pill is off or paused.
-#[tauri::command]
-fn github_refresh(section: String) {
-    integrations::github_refresh_if_stale(&section);
 }
 
 /// Lets the island write to the same log as the Rust side.
@@ -842,7 +821,6 @@ pub fn run() {
             secret_set,
             secret_clear,
             refresh_integration,
-            github_refresh,
             open_n8n,
             open_settings_window,
             set_paused,
@@ -912,6 +890,7 @@ pub fn run() {
             audio::audio_set_mute,
             media_sessions::media_now,
             media_sessions::media_control,
+            media_sessions::player_control,
             selection::jarvis_selected_text,
             selection::jarvis_copy_text,
             pc_monitor::net_speed_test,
@@ -924,7 +903,6 @@ pub fn run() {
             notes::notes_open,
             routines::jarvis_run_routine,
             jarvis_tools::jarvis_briefing,
-            jarvis_tools::jarvis_github_overview,
             open_project,
             edge_tts::tts_voices,
             code_editor_name,

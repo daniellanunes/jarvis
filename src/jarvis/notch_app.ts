@@ -41,15 +41,15 @@ type TabId =
   | "agenda"
   | "clipboard"
   | "routines"
+  | "nicknames"
   | "pc"
   | "mail"
   | "whatsapp"
   | "files"
   | "notes"
-  | "github"
   | "settings";
 
-type OrganizeSubTab = "tasks" | "reminders" | "timers" | "habits" | "routines" | "clipboard";
+type OrganizeSubTab = "tasks" | "reminders" | "timers" | "habits" | "routines" | "nicknames" | "clipboard";
 type SettingsSubTab = "brain" | "customize" | "notch";
 type ProjectsViewMode = "list" | "graph";
 
@@ -171,7 +171,6 @@ const ICONS = {
   whatsapp: "M3 21l1.65-4.94A9 9 0 1 1 8 19.6L3 21z M9 9.5c0 3 2.5 5.5 5.5 5.5l1.2-1.2-1.8-1-1 .8a4 4 0 0 1-2.3-2.3l.8-1-1-1.8L9 9.5z",
   fileSearch: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h5 M14 2l6 6 M14 2v6h6 M16.5 19.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z M18.5 18.5L21 21",
   notes: "M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z",
-  github: "M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22",
   prev: "M19 20L9 12l10-8v16z M5 19V5",
   next: "M5 4l10 8-10 8V4z M19 5v14",
   play: "M6 4l14 8-14 8V4z",
@@ -246,6 +245,7 @@ const ORGANIZE_TABS: Set<TabId> = new Set([
   "timers",
   "habits",
   "routines",
+  "nicknames",
   "clipboard",
 ]);
 
@@ -899,7 +899,7 @@ export async function startJarvisNotch(root: HTMLElement) {
               class: "icon-action",
               title: "Voltar",
               onclick: () => {
-                void Bridge.jarvisMediaControl("prev");
+                void Bridge.playerControl("prev", nowPlaying.title).catch((e) => showToast(String(e)));
                 void refreshMedia(450);
               },
             },
@@ -911,7 +911,7 @@ export async function startJarvisNotch(root: HTMLElement) {
               class: "play-circle",
               title: nowPlaying.playing ? "Pausar" : "Tocar",
               onclick: () => {
-                void Bridge.jarvisMediaControl("play_pause");
+                void Bridge.playerControl("play_pause", nowPlaying.title).catch((e) => showToast(String(e)));
                 void refreshMedia(350);
               },
             },
@@ -923,7 +923,7 @@ export async function startJarvisNotch(root: HTMLElement) {
               class: "icon-action",
               title: "Avançar",
               onclick: () => {
-                void Bridge.jarvisMediaControl("next");
+                void Bridge.playerControl("next", nowPlaying.title).catch((e) => showToast(String(e)));
                 void refreshMedia(450);
               },
             },
@@ -1525,6 +1525,7 @@ export async function startJarvisNotch(root: HTMLElement) {
       { id: "timers", label: "Timers" },
       { id: "habits", label: "Hábitos" },
       { id: "routines", label: "Rotinas" },
+      { id: "nicknames", label: "Contatos" },
       { id: "clipboard", label: "Copiados" },
     ];
 
@@ -1555,6 +1556,7 @@ export async function startJarvisNotch(root: HTMLElement) {
       case "timers": renderTimersBody(main); break;
       case "habits": renderHabitsBody(main); break;
       case "routines": renderRoutinesBody(main); break;
+      case "nicknames": renderNicknamesBody(main); break;
       case "clipboard": renderClipboardBody(main); break;
     }
   }
@@ -1837,6 +1839,118 @@ export async function startJarvisNotch(root: HTMLElement) {
         text: "Com gatilho, a rotina roda sozinha quando o app abre (ex.: valorant) ou no horário (ex.: 18:00).",
       }),
       data.routines.length ? grid : h("div", { class: "empty-state", text: "Nenhuma rotina criada." }),
+    );
+  }
+
+  // WhatsApp contacts by the name the user says: "Bia" → "Beatriz Souza".
+  function renderNicknamesBody(main: HTMLElement) {
+    const nickIn = h("input", { class: "input", style: "width:150px", placeholder: "Apelido (ex: Bia)" }) as HTMLInputElement;
+    const contactIn = h("input", { class: "input", style: "flex:1", placeholder: "Contato no WhatsApp (ex: Beatriz Souza)" }) as HTMLInputElement;
+    const add = async () => {
+      const nick = nickIn.value.trim();
+      const contact = contactIn.value.trim();
+      if (!nick || !contact) return;
+      const key = nick.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      const list = (data.contactNicknames ?? []).filter(
+        (n) => n.nick.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() !== key,
+      );
+      list.push({ nick, contact });
+      data.contactNicknames = list;
+      await saveData();
+      render();
+    };
+    contactIn.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") void add();
+    });
+    const list = data.contactNicknames ?? [];
+    const rows = h("div", { style: "display:flex;flex-direction:column;gap:6px" });
+    for (const n of list) {
+      rows.append(
+        h(
+          "div",
+          { class: "card row between", style: "padding:9px 12px" },
+          h(
+            "div",
+            { class: "row", style: "gap:8px" },
+            h("span", { style: "font-weight:600", text: n.nick }),
+            h("span", { style: "color:var(--muted)", text: "→" }),
+            h("span", { text: n.contact }),
+          ),
+          h(
+            "button",
+            {
+              class: "icon-action",
+              title: "Apagar",
+              onclick: async () => {
+                data.contactNicknames = (data.contactNicknames ?? []).filter((x) => x.nick !== n.nick);
+                await saveData();
+                render();
+              },
+            },
+            svgIcon(ICONS.close, 12),
+          ),
+        ),
+      );
+    }
+    // Contacts whose new messages Jarvis announces.
+    const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    const watchIn = h("input", { class: "input", style: "flex:1", placeholder: "Contato ou apelido (ex: Bia)" }) as HTMLInputElement;
+    const addWatch = async () => {
+      const c = watchIn.value.trim();
+      if (!c) return;
+      const nick = (data.contactNicknames ?? []).find((n) => fold(n.nick) === fold(c));
+      const name = nick ? nick.contact : c;
+      data.whatsappWatch = [...(data.whatsappWatch ?? []).filter((w) => fold(w) !== fold(name)), name];
+      await saveData();
+      render();
+    };
+    watchIn.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") void addWatch();
+    });
+    const watchRows = h("div", { style: "display:flex;flex-wrap:wrap;gap:6px" });
+    for (const w of data.whatsappWatch ?? []) {
+      watchRows.append(
+        h(
+          "div",
+          { class: "card row", style: "padding:6px 10px;gap:8px" },
+          h("span", { text: `🔔 ${w}` }),
+          h(
+            "button",
+            {
+              class: "icon-action",
+              title: "Parar de avisar",
+              onclick: async () => {
+                data.whatsappWatch = (data.whatsappWatch ?? []).filter((x) => x !== w);
+                await saveData();
+                render();
+              },
+            },
+            svgIcon(ICONS.close, 11),
+          ),
+        ),
+      );
+    }
+    const watchSection = h(
+      "div",
+      { style: "margin-top:18px" },
+      h("div", { style: "font-weight:600;margin-bottom:6px", text: "Avisar quando mandarem mensagem" }),
+      h("div", { class: "row" }, watchIn, h("button", { class: "btn", text: "Avisar", onclick: () => void addWatch() })),
+      h("div", {
+        style: "font-size:11px;color:var(--text-3);line-height:1.5;margin:6px 0 10px",
+        text: "Quando um desses contatos mandar mensagem, o Jarvis avisa e pergunta se pode ler; depois, pergunta o que você quer responder. Por voz: “me avisa quando a Bia mandar mensagem”.",
+      }),
+      (data.whatsappWatch ?? []).length ? watchRows : h("div", { class: "empty-state", text: "Nenhum contato com aviso." }),
+    );
+
+    main.append(
+      h("div", { style: "font-weight:600;margin-bottom:6px", text: "Apelidos" }),
+      h("div", { class: "row" }, nickIn, contactIn, h("button", { class: "btn", text: "Adicionar", onclick: () => void add() })),
+      h("div", {
+        style: "font-size:11px;color:var(--text-3);line-height:1.5;margin:6px 0 10px",
+        text: "Fale o apelido no lugar do nome: “manda pra Bia…”, “liga pra Bia”. Também dá para criar por voz: “quando eu falar Bia é a Beatriz Souza”.",
+      }),
+      list.length ? rows : h("div", { class: "empty-state", text: "Nenhum apelido ainda." }),
+      watchSection,
     );
   }
 
@@ -3682,7 +3796,6 @@ export async function startJarvisNotch(root: HTMLElement) {
       { id: "whatsapp", label: "WhatsApp", icon: ICONS.whatsapp },
       { id: "files", label: "Arquivos", icon: ICONS.fileSearch },
       { id: "notes", label: "Notas", icon: ICONS.notes },
-      { id: "github", label: "GitHub", icon: ICONS.github },
       {
         id: "tasks",
         label: "Organizar",
@@ -3797,7 +3910,6 @@ export async function startJarvisNotch(root: HTMLElement) {
         case "whatsapp": toolTabs.renderWhatsApp(main); break;
         case "files": toolTabs.renderFiles(main); break;
         case "notes": toolTabs.renderNotes(main); break;
-        case "github": toolTabs.renderGithub(main); break;
         case "settings": renderSettings(main); break;
       }
     }
@@ -3935,6 +4047,17 @@ export async function startJarvisNotch(root: HTMLElement) {
   await onEvent<string>("jarvis-say", (msg) => {
     showToast(msg);
     void Voice.speak(msg);
+  });
+
+  // A watched WhatsApp contact wrote: said out loud, then the answer is heard
+  // ("sim" reads it, "não" leaves it) — no "Jarvis" needed.
+  await onEvent<{ contact: string; text: string }>("whatsapp-incoming", (m) => {
+    Sound.play("question");
+    showToast(`💬 ${m.text}`, 20000);
+    chatLog.push({ role: "assistant", content: m.text, meta: "WhatsApp" });
+    void Voice.speak(m.text).then(() => {
+      if (State.settings.jarvisWakeWordEnabled ?? true) listenForAnswer();
+    });
   });
 
   // Game mode: a game shows FPS for 3 s → quiet notch; when it ends, a summary.

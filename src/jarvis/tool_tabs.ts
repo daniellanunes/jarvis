@@ -1,13 +1,11 @@
 // The newer notch tabs: E-mail (Gmail, loaded only when opened), Arquivos,
-// Notas (Obsidian) and GitHub, plus the Áudio / Internet card of Meu PC.
+// Notas (Obsidian), plus the Áudio / Internet card of Meu PC.
 // Each keeps its own state between renders; `rerender` redraws the panel.
 
 import {
   Bridge,
   type AudioState,
   type FileHit,
-  type GithubOverview,
-  type GithubPr,
   type MailFull,
   type MailItem,
   type NoteHit,
@@ -350,104 +348,6 @@ export function createToolTabs(ctx: ToolTabsCtx) {
           ),
         ),
       ),
-    );
-  }
-
-  // ── GitHub ────────────────────────────────────────────────────────────────
-  const gh = { data: null as GithubOverview | null, loading: false, error: "", hasToken: null as boolean | null };
-
-  async function loadGithub() {
-    gh.loading = true;
-    gh.error = "";
-    ctx.rerender();
-    gh.hasToken = await Bridge.secretPresent("github-token");
-    if (gh.hasToken) {
-      try {
-        gh.data = await Bridge.githubOverview();
-      } catch (e) {
-        gh.error = String(e).replace(/^Error:\s*/, "");
-      }
-    }
-    gh.loading = false;
-    if (ctx.isOpen("github")) ctx.rerender();
-  }
-
-  const ciLabel: Record<string, [string, string]> = {
-    success: ["ok", "CI ok"],
-    failure: ["fail", "CI falhou"],
-    pending: ["pending", "CI rodando"],
-    unknown: ["none", "sem CI"],
-  };
-
-  function prRow(p: GithubPr, showReview: boolean): HTMLElement {
-    const [cls, label] = ciLabel[p.ci] ?? ciLabel.unknown;
-    const review = showReview
-      ? { approved: "aprovado", changesRequested: "pediram mudanças", pending: "aguardando review" }[p.review] ?? ""
-      : "";
-    return h(
-      "button",
-      { class: "tt-row", onclick: () => void Bridge.openUrl(p.url) },
-      h(
-        "div",
-        { class: "tt-row-top" },
-        h("span", { class: "tt-row-title", text: p.title }),
-        h("span", { class: `tt-ci ${cls}`, text: label }),
-      ),
-      h("div", { class: "tt-row-snippet", text: `${p.repo} #${p.number}${p.isDraft ? " · rascunho" : ""}${review ? ` · ${review}` : ""}` }),
-    );
-  }
-
-  function renderGithub(main: HTMLElement) {
-    if (gh.data == null && !gh.loading && !gh.error && gh.hasToken !== false) void loadGithub();
-    main.append(ctx.sectionHead("GitHub", { label: "Atualizar", onclick: () => void loadGithub() }));
-    if (gh.hasToken === false) {
-      const input = h("input", { class: "input", type: "password", placeholder: "Token do GitHub (ghp_… ou github_pat_…)", style: "flex:1" }) as HTMLInputElement;
-      main.append(
-        h("div", { class: "tt-hint", text: "Crie um token em github.com/settings/tokens (escopos: repo, read:org) e cole aqui. Ele fica guardado no cofre do Windows." }),
-        h(
-          "div",
-          { class: "tt-searchbar" },
-          input,
-          h("button", {
-            class: "btn",
-            text: "Conectar",
-            onclick: async () => {
-              if (!input.value.trim()) return;
-              await Bridge.secretSet("github-token", input.value.trim());
-              input.value = "";
-              void loadGithub();
-            },
-          }),
-        ),
-      );
-      return;
-    }
-    if (gh.loading) return void main.append(note("Carregando…"));
-    if (gh.error) return void main.append(note(gh.error, true));
-    const d = gh.data;
-    if (!d) return;
-    const failing = d.mainCI.filter((r) => r.ci === "failure");
-    main.append(
-      h("div", { class: "tt-hint", text: `Conectado como ${d.login}` }),
-      ctx.sectionHead(`Reviews pedidas a você (${d.toReview.length})`),
-      d.toReview.length ? h("div", { class: "tt-list" }, ...d.toReview.map((p) => prRow(p, false))) : note("Nenhuma review pendente."),
-      ctx.sectionHead(`Seus PRs abertos (${d.myPRs.length})`),
-      d.myPRs.length ? h("div", { class: "tt-list" }, ...d.myPRs.map((p) => prRow(p, true))) : note("Nenhum PR aberto."),
-      ctx.sectionHead("CI dos seus repositórios"),
-      failing.length
-        ? h(
-            "div",
-            { class: "tt-list" },
-            ...failing.map((r) =>
-              h(
-                "button",
-                { class: "tt-row", onclick: () => void Bridge.openUrl(r.url) },
-                h("div", { class: "tt-row-top" }, h("span", { class: "tt-row-title", text: r.repo }), h("span", { class: "tt-ci fail", text: "CI falhou" })),
-                h("div", { class: "tt-row-snippet", text: `branch ${r.branch}` }),
-              ),
-            ),
-          )
-        : note(d.mainCI.length ? "Tudo verde nos repositórios principais." : "Sem CI nos repositórios recentes."),
     );
   }
 
@@ -1109,7 +1009,7 @@ export function createToolTabs(ctx: ToolTabsCtx) {
     }
   }
 
-  return { renderMail, renderWhatsApp, renderFiles, renderNotes, renderGithub, renderPcExtras, refreshAudio: loadAudio };
+  return { renderMail, renderWhatsApp, renderFiles, renderNotes, renderPcExtras, refreshAudio: loadAudio };
 }
 
 export function emptyInto(el: HTMLElement) {

@@ -758,9 +758,6 @@ interface IntegrationDef {
 const INTEGRATIONS: IntegrationDef[] = [
   { id: "integration_stripe", name: "Stripe", color: "#0570DE",
     fields: [{ key: "stripe-api-key", label: N_("Secret key"), placeholder: "sk_live_…", secret: true }] },
-  { id: "integration_github", name: "GitHub", color: "#F4505E",
-    fields: [{ key: "github-token", label: N_("Token"), placeholder: "ghp_…", secret: true }],
-    hint: N_("Classic token with the repo scope, or fine-grained with read access to Pull requests, Commit statuses and Actions.") },
   { id: "integration_vercel", name: "Vercel", color: "#7C5CFF",
     fields: [{ key: "vercel-token", label: N_("Token"), placeholder: "…", secret: true }] },
   { id: "integration_n8n", name: "n8n", color: "#F29B38",
@@ -1326,7 +1323,7 @@ async function render() {
   const shortcutReport = await Bridge.shortcutsStatus();
 
   const keys = [
-    "stripe-api-key", "github-token", "vercel-token",
+    "stripe-api-key", "vercel-token",
     "n8n-url", "n8n-api-key", "resend-api-key", "notion-api-key", "calcom-api-key",
   ];
   const present: Record<string, boolean> = {};
