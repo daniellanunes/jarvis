@@ -171,7 +171,6 @@ impl Default for Settings {
                 "integration_resend".into(),
                 "integration_n8n".into(),
                 "integration_vercel".into(),
-                "integration_github".into(),
             ],
             main_pill: "integration_claude".into(),
             screen: "primary".into(),

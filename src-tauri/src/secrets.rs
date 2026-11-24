@@ -117,7 +117,6 @@ mod tests {
             include_str!("jarvis_accounts.rs"),
             include_str!("spotify_api.rs"),
             include_str!("google_calendar.rs"),
-            include_str!("github.rs"),
             include_str!("integrations.rs"),
             include_str!("openai_compat.rs"),
             include_str!("claude.rs"),

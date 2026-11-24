@@ -35,6 +35,97 @@ fn shortcut_roots() -> Vec<std::path::PathBuf> {
     roots
 }
 
+/// Where a .lnk points. None = it could not be read (then it is kept).
+#[cfg(windows)]
+fn lnk_target(lnk: &std::path::Path) -> Option<String> {
+    use windows::core::{Interface, PCWSTR};
+    use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, IPersistFile, CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, STGM_READ};
+    use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER).ok()?;
+        let file: IPersistFile = link.cast().ok()?;
+        let wide: Vec<u16> = lnk.as_os_str().to_string_lossy().encode_utf16().chain(std::iter::once(0)).collect();
+        file.Load(PCWSTR(wide.as_ptr()), STGM_READ).ok()?;
+        let mut buf = [0u16; 1024];
+        link.GetPath(&mut buf, std::ptr::null_mut(), 0).ok()?;
+        let len = buf.iter().position(|c| *c == 0).unwrap_or(buf.len());
+        Some(String::from_utf16_lossy(&buf[..len]))
+    }
+}
+
+/// A shortcut left behind by an uninstalled or moved program ("Antigravity
+/// IDE.exe" after it became "Antigravity.exe"): opening it only fails.
+fn broken_shortcut(lnk: &std::path::Path) -> bool {
+    #[cfg(windows)]
+    {
+        if lnk.extension().is_some_and(|e| e.eq_ignore_ascii_case("lnk")) {
+            if let Some(target) = lnk_target(lnk) {
+                let t = target.trim();
+                // Store apps and installer-made shortcuts have no plain target.
+                return !t.is_empty() && t.contains(":\\") && !std::path::Path::new(t).exists();
+            }
+        }
+    }
+    let _ = lnk;
+    false
+}
+
+/// Start menu apps as Windows lists them (Get-StartApps): name → AppID, which
+/// opens with `shell:AppsFolder\AppID` — Store apps (Claude, WhatsApp…) too.
+static START_APPS: LazyLock<Mutex<Option<(std::time::Instant, Vec<(String, String, String)>)>>> = LazyLock::new(|| Mutex::new(None));
+
+fn start_apps() -> Vec<(String, String, String)> {
+    let mut guard = START_APPS.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((at, list)) = guard.as_ref() {
+        if at.elapsed() < Duration::from_secs(300) {
+            return list.clone();
+        }
+    }
+    let mut list = Vec::new();
+    #[cfg(windows)]
+    {
+        let out = Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", "[Console]::OutputEncoding=[Text.Encoding]::UTF8; Get-StartApps | ForEach-Object { $_.Name + \"`t\" + $_.AppID }"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+        if let Ok(o) = out {
+            for line in String::from_utf8_lossy(&o.stdout).lines() {
+                if let Some((name, id)) = line.split_once('\t') {
+                    let f = crate::file_search::fold(name.trim());
+                    if !f.is_empty() && !id.trim().is_empty() && !f.contains("uninstall") && !f.contains("desinstal") {
+                        list.push((f, id.trim().to_string(), name.trim().to_string()));
+                    }
+                }
+            }
+        }
+    }
+    *guard = Some((std::time::Instant::now(), list.clone()));
+    list
+}
+
+/// An app to open by name: (label, what to launch). Start menu / Desktop
+/// shortcuts that still work first, then the Start menu's own app list.
+pub fn find_app(name: &str) -> Option<(String, String)> {
+    if let Some(lnk) = find_app_shortcut(name) {
+        let label = lnk.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| name.to_string());
+        return Some((label, lnk.to_string_lossy().to_string()));
+    }
+    let q = app_query(name);
+    if q.len() < 2 {
+        return None;
+    }
+    let apps = start_apps();
+    let as_paths: Vec<(String, std::path::PathBuf)> = apps.iter().map(|(n, id, _)| (n.clone(), std::path::PathBuf::from(id))).collect();
+    let id = pick_shortcut(&as_paths, &q)?.to_string_lossy().to_string();
+    // An AppID that is a path must still exist (the same stale-program case).
+    if id.contains(":\\") && !std::path::Path::new(&id).exists() {
+        return None;
+    }
+    let label = apps.iter().find(|(_, i, _)| *i == id).map(|(_, _, shown)| shown.clone()).unwrap_or_else(|| name.to_string());
+    Some((label, format!("shell:AppsFolder\\{id}")))
+}
+
 fn collect_shortcuts(dir: &std::path::Path, depth: usize, out: &mut Vec<(String, std::path::PathBuf)>) {
     if depth > 4 {
         return;
@@ -54,6 +145,9 @@ fn collect_shortcuts(dir: &std::path::Path, depth: usize, out: &mut Vec<(String,
             if f.contains("uninstall") || f.contains("desinstal") || f.contains("readme") || f.contains("help") {
                 continue;
             }
+            if broken_shortcut(&p) {
+                continue;
+            }
             out.push((f, p));
         }
     }
@@ -66,6 +160,21 @@ fn app_query(name: &str) -> String {
         .filter(|w| !matches!(*w, "o" | "a" | "os" | "as" | "app" | "aplicativo" | "programa" | "do" | "da" | "de" | "meu" | "minha"))
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// What `jarvis_open_target` would open for a routine step: Some(label), or
+/// None when nothing on the PC answers to that name.
+pub fn opens_what(target: &str) -> Option<String> {
+    let t = target.trim();
+    let lower = t.to_lowercase();
+    const BUILTIN: &[&str] = &[
+        "spotify", "chrome", "google chrome", "edge", "microsoft edge", "google", "youtube", "gmail", "whatsapp", "discord", "vscode", "vs code",
+        "code", "notepad", "bloco de notas", "calc", "calculadora", "explorer", "arquivos", "explorador", "terminal", "wt", "powershell", "cmd",
+    ];
+    if BUILTIN.contains(&lower.as_str()) || lower.contains(':') || lower.contains('.') || lower.contains('\\') || std::path::Path::new(t).exists() {
+        return Some(t.to_string());
+    }
+    find_app(t).map(|(label, _)| label)
 }
 
 /// Best shortcut for an app name: exact name, then starts with, then contains.
@@ -91,8 +200,13 @@ pub fn pick_shortcut(list: &[(String, std::path::PathBuf)], q: &str) -> Option<s
     let qn = nospace(q);
     list.iter()
         .find(|(n, _)| n == q || nospace(n) == qn)
+        // "obs" → "OBS Studio" (a whole word), not "Obsidian" (a prefix).
+        .or_else(|| list.iter().filter(|(n, _)| n.split(|c: char| !c.is_alphanumeric()).any(|w| w == q)).min_by_key(|(n, _)| n.len()))
         .or_else(|| list.iter().filter(|(n, _)| n.starts_with(q) || nospace(n).starts_with(&qn)).min_by_key(|(n, _)| n.len()))
         .or_else(|| list.iter().filter(|(n, _)| q.len() >= 4 && (n.contains(q) || nospace(n).contains(&qn))).min_by_key(|(n, _)| n.len()))
+        // "Antigravity IDE" when only "Antigravity" is there: the longest name
+        // the request starts with (a whole word).
+        .or_else(|| list.iter().filter(|(n, _)| n.len() >= 4 && q.starts_with(&format!("{n} "))).max_by_key(|(n, _)| n.len()))
         .map(|(_, p)| p.clone())
 }
 
@@ -289,9 +403,27 @@ pub fn jarvis_open_target(target: String) -> Result<String, String> {
             }
             // An installed app, by the name in the Start menu / Desktop.
             if !std::path::Path::new(raw).exists() {
-                if let Some(lnk) = find_app_shortcut(raw) {
-                    let label = lnk.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| raw.to_string());
-                    launch_shell(&lnk.to_string_lossy())?;
+                if let Some((label, target)) = find_app(raw) {
+                    // Already running: its window, not a second copy (Android
+                    // Studio and others refuse a second start with an error).
+                    #[cfg(windows)]
+                    if let Some(exe) = target.to_lowercase().ends_with(".lnk").then(|| lnk_target(std::path::Path::new(&target))).flatten() {
+                        let stem = std::path::Path::new(&exe).file_stem().map(|s| s.to_string_lossy().to_lowercase()).unwrap_or_default();
+                        if !stem.is_empty() && crate::routines::running_programs().contains(&stem) {
+                            return Ok(if crate::pc_control::focus_program(&stem) {
+                                format!("{label} já estava aberto")
+                            } else {
+                                format!("{label} já está abrindo")
+                            });
+                        }
+                    }
+                    if let Err(e) = launch_shell(&target) {
+                        // The shortcut failed: the Start menu's own entry.
+                        let q = app_query(raw);
+                        let as_paths: Vec<(String, std::path::PathBuf)> = start_apps().into_iter().map(|(n, id, _)| (n, std::path::PathBuf::from(id))).collect();
+                        let Some(id) = pick_shortcut(&as_paths, &q) else { return Err(e) };
+                        launch_shell(&format!("shell:AppsFolder\\{}", id.to_string_lossy())).map_err(|_| e)?;
+                    }
                     return Ok(format!("Abrindo {label}"));
                 }
             }
@@ -987,40 +1119,10 @@ static COVER_CACHE: LazyLock<Mutex<HashMap<String, String>>> =
 pub async fn jarvis_now_playing() -> Result<NowPlaying, String> {
     #[cfg(windows)]
     {
-        let raw_info = tokio::task::spawn_blocking(|| -> Option<(String, String, String, bool)> {
-            let script = r#"
-Add-Type -AssemblyName System.Runtime.WindowsRuntime
-$asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' })[0]
-function Await($WinRtTask, $ResultType) {
-    $asTask = $asTaskGeneric.MakeGenericMethod($ResultType)
-    $netTask = $asTask.Invoke($null, @($WinRtTask))
-    $netTask.Wait(-1) | Out-Null
-    $netTask.Result
-}
-[Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager,Windows.Media.Control,ContentType=WindowsRuntime] | Out-Null
-$mgr = Await ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
-$session = $mgr.GetCurrentSession()
-if ($session) {
-    $props = Await ($session.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
-    $info = $session.GetPlaybackInfo()
-    @{ title = [string]$props.Title; artist = [string]$props.Artist; album = [string]$props.AlbumTitle; playing = ($info.PlaybackStatus.ToString() -eq 'Playing') } | ConvertTo-Json -Compress
-}
-"#;
-            let out = Command::new("powershell")
-                .args(["-NoProfile", "-NonInteractive", "-Command", script])
-                .creation_flags(CREATE_NO_WINDOW)
-                .output()
-                .ok()?;
-            let text = String::from_utf8_lossy(&out.stdout);
-            let v: serde_json::Value = serde_json::from_str(text.trim()).ok()?;
-            let title = v["title"].as_str().unwrap_or("").trim().to_string();
-            if title.is_empty() {
-                return None;
-            }
-            let artist = v["artist"].as_str().unwrap_or("").trim().to_string();
-            let album = v["album"].as_str().unwrap_or("").trim().to_string();
-            let playing = v["playing"].as_bool().unwrap_or(false);
-            Some((title, artist, album, playing))
+        // Windows' media sessions, read natively (the PowerShell way garbled
+        // accents: "Legião" came out with a broken character).
+        let raw_info = tokio::task::spawn_blocking(|| {
+            crate::media_sessions::now().filter(|m| !m.title.trim().is_empty()).map(|m| (m.title, m.artist, m.album, m.playing))
         })
         .await
         .map_err(|e| e.to_string())?;
@@ -1094,7 +1196,7 @@ mod tests {
 
     #[test]
     fn apps_are_found_by_their_shortcut_name() {
-        let list: Vec<(String, PathBuf)> = ["openbot", "obsidian", "visual studio code", "fivem - cfx re development kit (fxdk)", "fivem", "steam"]
+        let list: Vec<(String, PathBuf)> = ["openbot", "obsidian", "obs studio", "visual studio code", "fivem - cfx re development kit (fxdk)", "fivem", "steam"]
             .iter()
             .map(|n| (n.to_string(), PathBuf::from(format!("{n}.lnk"))))
             .collect();
@@ -1104,6 +1206,13 @@ mod tests {
         assert_eq!(pick("FiveM").as_deref(), Some("fivem.lnk"));
         assert_eq!(pick("visual studio").as_deref(), Some("visual studio code.lnk"));
         assert_eq!(pick("xyz"), None);
+        assert_eq!(pick("OBS").as_deref(), Some("obs studio.lnk"));
+        assert_eq!(pick("obsidian").as_deref(), Some("obsidian.lnk"));
+        assert_eq!(pick("obsi").as_deref(), Some("obsidian.lnk"));
+        // Only "Antigravity" installed: "Antigravity IDE" still finds it.
+        let list2: Vec<(String, PathBuf)> = vec![("antigravity".into(), PathBuf::from("antigravity.lnk")), ("steam".into(), PathBuf::from("steam.lnk"))];
+        assert_eq!(pick_shortcut(&list2, "antigravity ide").map(|p| p.to_string_lossy().to_string()).as_deref(), Some("antigravity.lnk"));
+        assert_eq!(pick_shortcut(&list2, "steamdeck"), None);
     }
 }
 
@@ -1118,3 +1227,5 @@ mod editor_probe {
         }
     }
 }
+
+

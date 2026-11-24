@@ -622,6 +622,21 @@ pub fn type_into(app: &str, text: &str, keys: &str, field: &str) -> Result<Strin
     }
 }
 
+/// Brings forward a window of the program with this file name ("studio64").
+/// False when it has no window yet (still starting).
+pub fn focus_program(exe_stem: &str) -> bool {
+    #[cfg(windows)]
+    {
+        let want = fold(exe_stem);
+        if let Some(w) = win::windows().into_iter().find(|w| fold(&w.exe) == want) {
+            let _ = win::focus(w.hwnd);
+            return true;
+        }
+    }
+    let _ = exe_stem;
+    false
+}
+
 /// The open programs' windows, for "o que está aberto".
 pub fn list() -> String {
     #[cfg(windows)]

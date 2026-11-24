@@ -167,8 +167,6 @@ export const Bridge = {
 
   // ── Integrations ──────────────────────────────────────────────────────────
   refreshIntegration: (id: string) => call<void>("refresh_integration", { id }),
-  /** The GitHub card is on screen: refetch that part if it is stale. */
-  githubRefresh: (section: "pulse" | "activity") => call<void>("github_refresh", { section }),
   /** Opens the configured n8n instance in the browser. */
   openN8n: () => call<void>("open_n8n"),
 
@@ -371,9 +369,11 @@ export const Bridge = {
   audioSetMute: (mute: boolean) => callOrThrow<void>("audio_set_mute", { mute }),
   mediaNow: () => call<MediaNow | null>("media_now"),
   mediaControl: (action: string) => callOrThrow<string>("media_control", { action }),
+  /** The notch player's buttons, on the session of the track shown. */
+  playerControl: (action: string, title?: string) => callOrThrow<string>("player_control", { action, title: title ?? null }),
   selectedText: () => call<string | null>("jarvis_selected_text"),
   copyText: (text: string) => call<void>("jarvis_copy_text", { text }),
-  // ── Files, notes, routines, briefing, GitHub ─────────────────────────────
+  // ── Files, notes, routines, briefing ─────────────────────────────
   filesSearch: (query: string) => callOrThrow<FileHit[]>("files_search", { query }),
   filesOpen: (path: string, reveal: boolean) => callOrThrow<string>("files_open", { path, reveal }),
   filesWarm: () => call<void>("files_warm"),
@@ -383,7 +383,6 @@ export const Bridge = {
   notesOpen: (path: string) => callOrThrow<string>("notes_open", { path }),
   runRoutine: (name: string) => callOrThrow<string>("jarvis_run_routine", { name }),
   briefing: () => call<string>("jarvis_briefing"),
-  githubOverview: () => callOrThrow<GithubOverview>("jarvis_github_overview"),
 };
 
 export interface WeatherNow {
@@ -503,22 +502,6 @@ export interface NoteHit {
   title: string;
   snippet: string;
   modified: number;
-}
-export interface GithubPr {
-  id: string;
-  title: string;
-  url: string;
-  repo: string;
-  number: number;
-  isDraft: boolean;
-  ci: "pending" | "success" | "failure" | "unknown";
-  review: string;
-}
-export interface GithubOverview {
-  login: string;
-  myPRs: GithubPr[];
-  toReview: GithubPr[];
-  mainCI: { repo: string; url: string; branch: string; ci: GithubPr["ci"] }[];
 }
 
 /** `pc-metrics` event, once a second while a PC widget is on. */
@@ -675,6 +658,11 @@ export interface RoutineItem {
   trigger?: string;
 }
 
+export interface ContactNickname {
+  nick: string;
+  contact: string;
+}
+
 export interface JarvisData {
   userName: string;
   assistantName?: string;
@@ -691,6 +679,9 @@ export interface JarvisData {
   reminders: ReminderItem[];
   habits: HabitItem[];
   routines: RoutineItem[];
+  contactNicknames?: ContactNickname[];
+  /** WhatsApp contacts whose new messages Jarvis announces. */
+  whatsappWatch?: string[];
 }
 
 export interface AgentOption {

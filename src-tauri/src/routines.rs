@@ -102,6 +102,29 @@ pub async fn run(app: &AppHandle, rt: &RoutineItem) -> Vec<String> {
     out
 }
 
+/// Runs a routine and says, in one line, what did not work.
+pub async fn run_spoken(app: &AppHandle, name: &str) -> String {
+    let Some(rt) = jarvis_store::load_data().routines.into_iter().find(|r| r.name.eq_ignore_ascii_case(name.trim())) else {
+        return format!("Rotina não encontrada: {name}");
+    };
+    let lines = run(app, &rt).await;
+    let failed: Vec<String> = rt
+        .targets
+        .iter()
+        .zip(&lines)
+        .filter(|(_, l)| l.starts_with("Erro"))
+        .map(|(t, l)| {
+            crate::log::line(format!("rotina {}: {t} → {l}", rt.name));
+            parse_step(t).1
+        })
+        .collect();
+    if failed.is_empty() {
+        format!("Rodando {}.", rt.name)
+    } else {
+        format!("Rodando {}, mas não consegui abrir: {}.", rt.name, failed.join(", "))
+    }
+}
+
 pub async fn run_named(app: &AppHandle, name: &str) -> Result<String, String> {
     let data = jarvis_store::load_data();
     let rt = data
@@ -114,13 +137,41 @@ pub async fn run_named(app: &AppHandle, name: &str) -> Result<String, String> {
     Ok(format!("Executando rotina: {}{}", rt.name, if lines.is_empty() { String::new() } else { format!(" — {}", lines.join("; ")) }))
 }
 
+/// "Modo trabalho", "ativa o modo trabalho", "roda a rotina modo trabalho":
+/// the routine whose name was said (nothing else), to run at once.
+pub fn spoken(said: &str) -> Option<String> {
+    let clean = |s: &str| -> String {
+        crate::file_search::fold(s).chars().map(|c| if c.is_alphanumeric() || c == ' ' { c } else { ' ' }).collect::<String>().split_whitespace().collect::<Vec<_>>().join(" ")
+    };
+    let mut t = clean(said);
+    for _ in 0..3 {
+        for pre in [
+            "jarvis ", "por favor ", "ativa ", "ativar ", "ative ", "liga ", "ligar ", "roda ", "rodar ", "rode ", "executa ", "executar ", "execute ",
+            "inicia ", "iniciar ", "inicie ", "comeca ", "começa ", "abre ", "abrir ", "abra ", "a rotina ", "rotina ", "o ", "a ", "meu ", "minha ",
+        ] {
+            if let Some(rest) = t.strip_prefix(pre) {
+                t = rest.to_string();
+            }
+        }
+    }
+    for tail in [" por favor", " agora", " ai", " pra mim", " para mim", " jarvis"] {
+        if let Some(rest) = t.strip_suffix(tail) {
+            t = rest.to_string();
+        }
+    }
+    if t.len() < 3 {
+        return None;
+    }
+    jarvis_store::load_data().routines.into_iter().find(|r| clean(&r.name) == t || clean(&r.name).strip_prefix("rotina ") == Some(t.as_str())).map(|r| r.name)
+}
+
 #[tauri::command]
 pub async fn jarvis_run_routine(app: AppHandle, name: String) -> Result<String, String> {
     run_named(&app, &name).await
 }
 
 #[cfg(windows)]
-fn running_programs() -> HashSet<String> {
+pub(crate) fn running_programs() -> HashSet<String> {
     use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::System::Diagnostics::ToolHelp::{CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS};
     let mut set = HashSet::new();
@@ -140,7 +191,7 @@ fn running_programs() -> HashSet<String> {
 }
 
 #[cfg(not(windows))]
-fn running_programs() -> HashSet<String> {
+pub(crate) fn running_programs() -> HashSet<String> {
     HashSet::new()
 }
 
@@ -214,3 +265,26 @@ mod tests {
         assert!(!app_matches("code", "codex"));
     }
 }
+
+#[cfg(test)]
+mod probe {
+    use super::parse_step;
+    /// With this PC's data: `cargo test --lib routines::probe -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn what_is_understood_here() {
+        for t in ["obs", "OBS Studio", "antigravity", "obsidian", "programa que nao existe"] {
+            println!("abre {t:?} → {:?}", crate::jarvis_pc::opens_what(t));
+        }
+        for r in crate::jarvis_store::load_data().routines {
+            println!("rotina {:?}: {:?}", r.name, r.targets);
+            for t in &r.targets {
+                println!("   {t:?} → {:?}", crate::jarvis_pc::find_app(&parse_step(t).1));
+            }
+        }
+        for said in ["Modo Dev", "Jarvis, ativa o modo dev, por favor.", "roda a rotina modo foco", "abre o spotify", "modo"] {
+            println!("{said:?} → {:?}", super::spoken(said));
+        }
+    }
+}
+

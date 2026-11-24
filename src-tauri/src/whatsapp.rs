@@ -194,6 +194,7 @@ fn allow_call_media(win: &tauri::WebviewWindow) {
 pub fn init(app: &AppHandle) {
     let _ = APP.set(app.clone());
     spawn_call_watch();
+    spawn_message_watch();
     // A linked account loads with Jarvis (a few seconds after start, so the
     // notch comes up first): calls, messages and the tab are ready when asked.
     if linked_marker().exists() {
@@ -413,6 +414,8 @@ async fn clear_search(tab: &mut Tab) {
 /// Opens the chat with `to` (a contact or group name, a number, or the user).
 /// Returns the chat's title as WhatsApp shows it.
 async fn open_chat(tab: &mut Tab, to: &str) -> Result<String, String> {
+    let to = resolve_contact(to);
+    let to = to.as_str();
     // Already open?
     if let Ok(Value::String(t)) = tab.eval(TITLE_JS).await {
         if !t.is_empty() && fold(&t) == fold(to) {
@@ -1051,13 +1054,13 @@ fn show_window(win: &tauri::WebviewWindow) {
 #[serde(rename_all = "camelCase", default)]
 pub struct WaCall {
     /// "none" | "incoming" | "active"
-    state: String,
+    pub state: String,
     name: String,
     /// "0:33" while connected.
     time: String,
     /// "Chamando…" before the other side answers.
     status: String,
-    mic_off: bool,
+    pub mic_off: bool,
     cam_off: bool,
 }
 
@@ -1141,6 +1144,61 @@ async fn call_state(tab: &mut Tab) -> Result<WaCall, String> {
     Ok(serde_json::from_value(v).unwrap_or_default())
 }
 
+/// The call as the watcher last saw it (state "none" when there is none).
+static CALL_NOW: std::sync::Mutex<WaCall> =
+    std::sync::Mutex::new(WaCall { state: String::new(), name: String::new(), time: String::new(), status: String::new(), mic_off: false, cam_off: false });
+
+/// What the user wants done to the call, from what they said. None = not a call command.
+fn call_command(said: &str, state: &str) -> Option<&'static str> {
+    let t: String = fold(said).chars().map(|c| if c.is_alphanumeric() || c == ' ' { c } else { ' ' }).collect();
+    let mut t = t.split_whitespace().collect::<Vec<_>>().join(" ");
+    for pre in ["jarvis ", "por favor ", "pode "] {
+        if let Some(rest) = t.strip_prefix(pre) {
+            t = rest.to_string();
+        }
+    }
+    let about_call = ["chamada", "ligacao", "telefone", "whatsapp"].iter().any(|w| t.contains(w));
+    let has = |words: &[&str]| words.iter().any(|w| t.starts_with(w) || t.contains(&format!(" {w}")));
+    let in_call = state == "active";
+    let ringing = state == "incoming";
+    // Mute first: "desliga o microfone" is not hanging up.
+    if t.contains("microfone") || t.contains("mudo") || has(&["muta", "mutar", "silencia", "silenciar", "desmuta", "desmutar"]) {
+        return (in_call || about_call).then_some("mute");
+    }
+    if has(&["atende", "atender", "atenda", "aceita", "aceitar"]) && (ringing || about_call) {
+        return Some("accept");
+    }
+    if has(&["recusa", "recusar", "recuse", "rejeita", "rejeitar", "nao atende", "nao atender", "ignora"]) && (ringing || about_call) {
+        return Some("decline");
+    }
+    if has(&["desliga", "desligar", "desligue", "encerra", "encerrar", "encerre", "termina", "terminar", "finaliza", "finalizar", "sai da", "sair da", "corta"]) {
+        // "Desliga o PC" / "desliga a luz": not the call.
+        if about_call || ((in_call || ringing) && matches!(t.as_str(), "desliga" | "desligar" | "desliga ai" | "encerra" | "pode desligar")) {
+            return Some(if ringing { "decline" } else { "hangup" });
+        }
+    }
+    None
+}
+
+/// "Desliga a ligação", "atende", "recusa", "muta o microfone" — said to
+/// Jarvis about a WhatsApp call: done at once on the call's own buttons.
+pub async fn quick_call_control(said: &str) -> Option<String> {
+    let now = CALL_NOW.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let action = call_command(said, &now.state)?;
+    if now.state.is_empty() || now.state == "none" {
+        return Some("Não tem nenhuma ligação do WhatsApp agora.".into());
+    }
+    Some(match call_action(action).await {
+        Ok(after) => match action {
+            "hangup" => "Ligação encerrada.".into(),
+            "decline" => "Ligação recusada.".into(),
+            "accept" => format!("Atendi{}.", if now.name.is_empty() { String::new() } else { format!(" {}", now.name) }),
+            _ => if after.mic_off { "Microfone da ligação desligado.".into() } else { "Microfone da ligação ligado.".into() },
+        },
+        Err(e) => format!("Não consegui: {e}"),
+    })
+}
+
 /// Watches for calls while WhatsApp is loaded; tells the notch when one
 /// starts, rings in, ticks or ends.
 fn spawn_call_watch() {
@@ -1161,6 +1219,7 @@ fn spawn_call_watch() {
             let Ok(mut tab) = Tab::get().await else { continue };
             let Ok(now) = call_state(&mut tab).await else { continue };
             drop(_busy);
+            *CALL_NOW.lock().unwrap_or_else(|e| e.into_inner()) = now.clone();
             if now != last {
                 if now.state != last.state {
                     crate::log::line(format!("whatsapp: chamada {} {}", now.state, now.name));
@@ -1170,6 +1229,219 @@ fn spawn_call_watch() {
             }
         }
     });
+}
+
+// ── Watched contacts: "a Carol te mandou mensagem, quer que eu leia?" ─────────
+
+/// Where the conversation about a watched contact's message stands.
+#[derive(Debug, Clone, PartialEq)]
+enum Incoming {
+    /// "X te mandou mensagem. Quer que eu leia?" (how many new ones)
+    AskRead(String, u32),
+    /// Read out; "Quer responder?"
+    AskReply(String),
+    /// "O que você quer responder?"
+    Dictate(String),
+}
+
+static INCOMING: std::sync::Mutex<Option<(Incoming, Instant)>> = std::sync::Mutex::new(None);
+
+fn set_incoming(step: Option<Incoming>) {
+    *INCOMING.lock().unwrap_or_else(|e| e.into_inner()) = step.map(|s| (s, Instant::now()));
+}
+
+/// The last message the contact sent in the open chat (its time and text), to
+/// notice new ones while that chat is open (they never count as unread).
+fn last_incoming_js() -> String {
+    format!(
+        r#"(() => {{
+  const isMine = {MINE_JS};
+  const rows = [...document.querySelectorAll('#main [data-pre-plain-text]')].filter(r => !isMine(r));
+  const r = rows[rows.length - 1];
+  return r ? (r.getAttribute('data-pre-plain-text') || '') + (r.innerText || '').slice(0, 200) : '';
+}})()"#
+    )
+}
+
+/// Every few seconds: a new message from a watched contact → the notch says so
+/// and asks before reading (nothing is read on its own).
+fn spawn_message_watch() {
+    static STARTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if STARTED.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
+    tauri::async_runtime::spawn(async {
+        // What was last seen per contact; the first look only notes it down.
+        let mut seen: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+        let mut open_seen: Option<(String, String)> = None;
+        let lastin_js = last_incoming_js();
+        loop {
+            tokio::time::sleep(Duration::from_secs(6)).await;
+            let Some(app) = APP.get() else { continue };
+            if app.get_webview_window(LABEL).is_none() {
+                continue;
+            }
+            let watched: Vec<String> = crate::jarvis_store::load_data().whatsapp_watch.iter().map(|w| resolve_contact(w)).collect();
+            if watched.is_empty() {
+                continue;
+            }
+            let Ok(_busy) = BUSY.try_lock() else { continue };
+            let Ok(mut tab) = Tab::get().await else { continue };
+            let Ok(v) = tab.eval(CHATS_JS).await else { continue };
+            let chats: Vec<WaChat> = serde_json::from_value(v).unwrap_or_default();
+            let open = match tab.eval(TITLE_JS).await {
+                Ok(Value::String(t)) => t,
+                _ => String::new(),
+            };
+            let last_in = if open.is_empty() { String::new() } else { tab.eval(&lastin_js).await.ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default() };
+            drop(_busy);
+
+            let mut news: Vec<(String, u32)> = Vec::new();
+            for w in &watched {
+                let key = fold(w);
+                if let Some(c) = chats.iter().find(|c| fold(&c.title) == key) {
+                    let sig = format!("{}|{}|{}", c.last, c.time, c.unread);
+                    let before = seen.insert(key.clone(), sig.clone());
+                    if c.unread > 0 && before.is_some_and(|b| b != sig) {
+                        news.push((c.title.clone(), c.unread));
+                    }
+                }
+                // That chat is the one open in the page: its messages are read
+                // at once, so a new one is told by the last message itself.
+                if fold(&open) == key && !last_in.is_empty() {
+                    let before = open_seen.replace((key.clone(), last_in.clone()));
+                    if before.is_some_and(|(k, b)| k == key && b != last_in) && !news.iter().any(|(t, _)| fold(t) == key) {
+                        news.push((open.clone(), 1));
+                    }
+                }
+            }
+            for (title, count) in news {
+                // Already asked about this one a moment ago: only the count grows.
+                let pending = INCOMING.lock().unwrap_or_else(|e| e.into_inner()).clone();
+                if let Some((Incoming::AskRead(t, n), at)) = pending {
+                    if fold(&t) == fold(&title) && at.elapsed() < Duration::from_secs(60) {
+                        *INCOMING.lock().unwrap_or_else(|e| e.into_inner()) = Some((Incoming::AskRead(t, n.max(count)), at));
+                        continue;
+                    }
+                }
+                let text = if count > 1 {
+                    format!("{title} te mandou {count} mensagens no WhatsApp. Quer que eu leia?")
+                } else {
+                    format!("{title} te mandou uma mensagem no WhatsApp. Quer que eu leia?")
+                };
+                crate::log::line(format!("whatsapp: mensagem nova de {title} (avisando)"));
+                set_incoming(Some(Incoming::AskRead(title.clone(), count)));
+                let _ = tauri::Emitter::emit_to(app, crate::island::WINDOW_LABEL, "whatsapp-incoming", json!({ "contact": title, "text": text }));
+            }
+        }
+    });
+}
+
+/// What the contact sent, said in a few words ("mandou um áudio").
+fn spoken_message(m: &WaMessage) -> String {
+    let text = m.text.trim();
+    match m.kind.as_str() {
+        "audio" => format!("mandou um áudio{}", if m.duration.is_empty() { String::new() } else { format!(" de {}", m.duration) }),
+        "image" if text.is_empty() => "mandou uma foto".into(),
+        "image" => format!("mandou uma foto: {text}"),
+        "video" => "mandou um vídeo".into(),
+        "document" => format!("mandou um documento{}", if text.is_empty() { String::new() } else { format!(": {text}") }),
+        "sticker" => "mandou uma figurinha".into(),
+        _ if text.is_empty() => "mandou uma mensagem".into(),
+        _ => format!("disse: {text}"),
+    }
+}
+
+/// Reads the contact's newest messages (the `count` last ones they sent).
+async fn read_new(contact: &str, count: u32) -> Result<String, String> {
+    let t = thread(contact, 30).await?;
+    let theirs: Vec<&WaMessage> = t.messages.iter().filter(|m| !m.mine).collect();
+    let n = (count.max(1) as usize).min(6).min(theirs.len());
+    if n == 0 {
+        return Ok(format!("Abri a conversa com {}, mas não achei a mensagem.", t.title));
+    }
+    let lines: Vec<String> = theirs[theirs.len() - n..].iter().map(|m| spoken_message(m)).collect();
+    Ok(format!("{} {}. Quer responder?", t.title, lines.join(". Depois, ")))
+}
+
+/// "Responde que já tô chegando" → "já tô chegando".
+fn reply_text(said: &str) -> String {
+    let mut s = said.trim().to_string();
+    for _ in 0..2 {
+        let f = fold(&s);
+        for pre in [
+            "jarvis ", "jarvis, ", "responde que ", "responda que ", "responder que ", "fala que ", "fale que ", "diz que ", "diga que ", "manda que ",
+            "mande que ", "escreve que ", "escreva que ", "responde ", "responda ", "manda ", "mande ", "fala ", "diz ",
+        ] {
+            if f.starts_with(pre) {
+                s = s.chars().skip(pre.chars().count()).collect::<String>().trim().to_string();
+                break;
+            }
+        }
+    }
+    s
+}
+
+/// The answers in the watched-contact conversation. None = not part of it.
+async fn answer_incoming(said: &str) -> Option<String> {
+    let (step, at) = INCOMING.lock().unwrap_or_else(|e| e.into_inner()).clone()?;
+    if at.elapsed() > HOLD_FOR {
+        set_incoming(None);
+        return None;
+    }
+    let kind = answer_kind(said);
+    match step {
+        Incoming::AskRead(contact, count) => match kind {
+            Answer::Yes => Some(match read_new(&contact, count).await {
+                Ok(text) => {
+                    set_incoming(Some(Incoming::AskReply(contact)));
+                    text
+                }
+                Err(e) => {
+                    set_incoming(None);
+                    e
+                }
+            }),
+            Answer::No => {
+                set_incoming(None);
+                Some("Ok, deixo para depois.".into())
+            }
+            Answer::Other => {
+                set_incoming(None);
+                None
+            }
+        },
+        Incoming::AskReply(contact) | Incoming::Dictate(contact) if kind == Answer::No => {
+            let _ = contact;
+            set_incoming(None);
+            Some("Ok, sem resposta.".into())
+        }
+        Incoming::AskReply(contact) if kind == Answer::Yes => {
+            set_incoming(Some(Incoming::Dictate(contact)));
+            Some("O que você quer responder?".into())
+        }
+        Incoming::AskReply(contact) | Incoming::Dictate(contact) => {
+            let text = reply_text(said);
+            if text.is_empty() {
+                return Some("O que você quer responder?".into());
+            }
+            set_incoming(None);
+            // The usual check before anything is sent: "Posso enviar?".
+            let _ = prepare(&contact, &text);
+            Some(format!("Vou mandar para {}: \"{}\". Posso enviar?", who(&contact), text))
+        }
+    }
+}
+
+/// "Avisa quando a Carol mandar mensagem" (or stop): the brain's tool.
+pub fn watch(contact: &str, on: bool) -> Result<String, String> {
+    let name = resolve_contact(contact);
+    crate::jarvis_store::set_watch(&name, on)?;
+    Ok(if on {
+        format!("Combinado: quando {name} mandar mensagem no WhatsApp, eu aviso e pergunto se posso ler.")
+    } else {
+        format!("Ok, não aviso mais das mensagens de {name}.")
+    })
 }
 
 /// Sends `message` to `to`. From the notch (the user typed it) or after
@@ -1315,6 +1587,40 @@ fn who(to: &str) -> String {
     }
 }
 
+/// "Carol" → "Carolina Braga" when the user gave that nickname (Organizar →
+/// Apelidos, or by voice); anything else as it is.
+pub fn resolve_contact(name: &str) -> String {
+    let n = name.trim();
+    let key = fold(n);
+    let key = key.trim_start_matches("a ").trim_start_matches("o ").trim();
+    let list = crate::jarvis_store::load_data().contact_nicknames;
+    // Exact, else one letter off at the end ("Caro" heard for "Carol").
+    list.iter()
+        .find(|c| fold(&c.nick) == key)
+        .or_else(|| {
+            list.iter().find(|c| {
+                let nk = fold(&c.nick);
+                key.chars().count() >= 3 && (nk.starts_with(key) || key.starts_with(nk.as_str())) && nk.chars().count().abs_diff(key.chars().count()) == 1
+            })
+        })
+        .map(|c| c.contact.clone())
+        .unwrap_or_else(|| n.to_string())
+}
+
+/// Saves a nickname, with the contact's name as WhatsApp shows it when the
+/// search finds it.
+pub async fn add_nickname(nick: &str, contact: &str) -> Result<String, String> {
+    let mut name = contact.trim().to_string();
+    let found = tokio::time::timeout(Duration::from_secs(10), search_chats(contact)).await;
+    if let Ok(Ok(list)) = found {
+        if let Some(c) = list.iter().find(|c| fold(&c.title) == fold(contact)).or(if list.len() == 1 { list.first() } else { None }) {
+            name = c.title.clone();
+        }
+    }
+    crate::jarvis_store::set_nickname(nick, &name)?;
+    Ok(format!("Pronto: quando você disser \"{}\", vou entender {} no WhatsApp.", nick.trim(), name))
+}
+
 /// The brain's `whatsapp_send`. The first call holds the message and returns
 /// what Jarvis must ask; the same message again, in a later turn, is the
 /// user's yes (when it reached the AI instead of the quick answer below).
@@ -1326,6 +1632,8 @@ pub enum Prepared {
 }
 
 pub fn prepare(to: &str, message: &str) -> Prepared {
+    let to = resolve_contact(to);
+    let to = to.as_str();
     let mut held = HELD.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(h) = held.as_ref() {
         let same = fold(&h.to) == fold(to) && h.message.trim() == message.trim();
@@ -1429,6 +1737,8 @@ pub fn parse_call(said: &str) -> Option<(String, bool)> {
 
 /// Holds a call and returns what Jarvis asks ("Posso ligar?").
 pub fn prepare_call(to: &str, video: bool) -> String {
+    let to = resolve_contact(to);
+    let to = to.as_str();
     *HELD_CALL.lock().unwrap_or_else(|e| e.into_inner()) = Some((to.trim().to_string(), video, Instant::now()));
     format!("Vou fazer uma {} para {} no WhatsApp. Posso ligar?", if video { "chamada de vídeo" } else { "ligação" }, who(to))
 }
@@ -1440,6 +1750,10 @@ pub fn quick_call(said: &str) -> Option<String> {
 }
 
 pub async fn answer_held(said: &str) -> Option<String> {
+    // "X te mandou mensagem, quer que eu leia?" and what follows.
+    if let Some(text) = answer_incoming(said).await {
+        return Some(text);
+    }
     // A call asked about first.
     let call_kind = {
         let held = HELD_CALL.lock().unwrap_or_else(|e| e.into_inner());
@@ -1563,8 +1877,42 @@ mod tests {
         }
     }
 
+    /// The tests that use the held message take turns.
+    static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    #[test]
+    fn a_watched_contact_conversation_goes_read_reply_confirm() {
+        let _turn = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+        assert_eq!(reply_text("Responde que já tô chegando"), "já tô chegando");
+        assert_eq!(reply_text("Jarvis, diz que te ligo depois"), "te ligo depois");
+        assert_eq!(reply_text("Beleza, às 8"), "Beleza, às 8");
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        rt.block_on(async {
+            // "Quer que eu leia?" → "não".
+            set_incoming(Some(Incoming::AskRead("Ana Teste".into(), 1)));
+            assert_eq!(answer_incoming("não").await.as_deref(), Some("Ok, deixo para depois."));
+            assert!(INCOMING.lock().unwrap().is_none());
+            // After reading: "Quer responder?" → "sim" → what to say → the usual "Posso enviar?".
+            set_incoming(Some(Incoming::AskReply("Ana Teste".into())));
+            assert_eq!(answer_incoming("sim").await.as_deref(), Some("O que você quer responder?"));
+            let said = answer_incoming("Diz que te ligo depois").await.unwrap();
+            assert_eq!(said, "Vou mandar para Ana Teste: \"te ligo depois\". Posso enviar?");
+            assert!(HELD.lock().unwrap().as_ref().is_some_and(|h| h.to == "Ana Teste" && h.message == "te ligo depois"));
+            *HELD.lock().unwrap() = None;
+            // Straight away: "Quer responder?" → "responde que chego às 8".
+            set_incoming(Some(Incoming::AskReply("Ana Teste".into())));
+            assert!(answer_incoming("responde que chego às 8").await.unwrap().contains("\"chego às 8\""));
+            *HELD.lock().unwrap() = None;
+            // Something else entirely while asked to read: not this conversation.
+            set_incoming(Some(Incoming::AskRead("Ana Teste".into(), 1)));
+            assert_eq!(answer_incoming("que horas são em Tóquio agora meu amigo querido").await, None);
+            assert!(answer_incoming("sim").await.is_none());
+        });
+    }
+
     #[test]
     fn the_same_message_again_later_is_the_yes() {
+        let _turn = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
         *HELD.lock().unwrap() = None;
         assert!(matches!(prepare("Ana", "oi"), Prepared::Ask(_)));
         // Same turn (a double call): still only asking.
@@ -1573,6 +1921,24 @@ mod tests {
         HELD.lock().unwrap().as_mut().unwrap().at = Instant::now() - Duration::from_secs(10);
         assert!(matches!(prepare("ana", "oi"), Prepared::Send(..)));
         assert!(HELD.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn call_commands_are_understood() {
+        assert_eq!(call_command("Desliga a chamada.", "active"), Some("hangup"));
+        assert_eq!(call_command("Jarvis, encerra a ligação", "active"), Some("hangup"));
+        assert_eq!(call_command("pode desligar", "active"), Some("hangup"));
+        assert_eq!(call_command("termina a ligação do WhatsApp", "none"), Some("hangup"));
+        assert_eq!(call_command("desliga o microfone", "active"), Some("mute"));
+        assert_eq!(call_command("atende", "incoming"), Some("accept"));
+        assert_eq!(call_command("recusa a ligação", "incoming"), Some("decline"));
+        assert_eq!(call_command("desliga", "incoming"), Some("decline"));
+        // Not about a call.
+        assert_eq!(call_command("Desligar PC.", "active"), None);
+        assert_eq!(call_command("desliga a luz da sala", "none"), None);
+        assert_eq!(call_command("desliga", "none"), None);
+        assert_eq!(call_command("desliga o microfone", "none"), None);
+        assert_eq!(call_command("toca uma música", "active"), None);
     }
 
     #[test]
@@ -1591,5 +1957,21 @@ mod tests {
         assert_eq!(phone_digits("71 99999 0000").as_deref(), Some("71999990000"));
         assert_eq!(phone_digits("Ana 2"), None);
         assert_eq!(phone_digits("12345"), None);
+    }
+}
+
+#[cfg(test)]
+mod nick_probe {
+    /// Writes and removes a test nickname in this PC's data.
+    /// `cargo test --lib whatsapp::nick_probe -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn a_nickname_becomes_the_contact() {
+        crate::jarvis_store::set_nickname("Zezinho Teste", "José Teste da Silva").unwrap();
+        println!("{:?}", super::resolve_contact("zezinho teste"));
+        println!("{:?}", super::prepare_call("o Zezinho Teste", false));
+        *super::HELD_CALL.lock().unwrap() = None;
+        println!("removido: {:?}", crate::jarvis_store::remove_nickname("Zezinho Teste"));
+        println!("{:?}", super::resolve_contact("Zezinho Teste"));
     }
 }

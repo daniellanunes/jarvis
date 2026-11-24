@@ -10,8 +10,6 @@ import { State, type AgentTask } from "../core/state";
 import { Bridge } from "../core/bridge";
 import { isComingSoon, pillDefinition } from "../core/pills";
 import { refreshHookPills } from "../island/integrations";
-import { readActivity, readPulse, readStats } from "../core/github";
-import { githubDetail, githubPulseCard } from "./github";
 import { N_, language, t } from "../i18n/i18n";
 
 /** Same shape as the Swift `timeAgo` computed properties. */
@@ -243,34 +241,6 @@ function resendCard(): HTMLElement {
 
 // ── GitHub ────────────────────────────────────────────────────────────────────
 
-function statRow(icon: string, color: string, label: string, value: string): HTMLElement {
-  return h(
-    "div",
-    { class: "int-stat" },
-    h("i", { class: "int-stat-icon", style: `color:${color}` }, svg(icon, 10)),
-    h("span", { class: "int-stat-label", text: label }),
-    h("span", { class: "int-stat-value", text: value }),
-  );
-}
-
-function githubCard(): HTMLElement {
-  const d = get("integration_github");
-  const stars = Number(d.totalStars ?? 0);
-  const repos = Number(d.totalRepos ?? 0);
-  const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
-  return h(
-    "div",
-    { class: "int-card" },
-    header("#F4505E", "GitHub", t("Overview")),
-    h(
-      "div",
-      { class: "int-stats" },
-      statRow(ICONS.star, "#F5A524", t("Total stars"), fmt(stars)),
-      statRow(ICONS.stack, "#6B7079", t("Repositories"), String(repos)),
-    ),
-  );
-}
-
 // ── Stripe ────────────────────────────────────────────────────────────────────
 
 function stripeCard(): HTMLElement {
@@ -432,8 +402,6 @@ export function hasIntegrationData(id: string): boolean {
       return arr(id, "deployments").length > 0;
     case "integration_resend":
       return arr(id, "emails").length > 0;
-    case "integration_github":
-      return get(id).totalRepos != null || readPulse(get(id)) != null;
     case "integration_stripe":
       return info.loaded;
     case "integration_notion":
@@ -457,22 +425,9 @@ export function renderIntegrationCard(task: AgentTask, hooks: IntegrationCardHoo
   }
   if (!hasIntegrationData(task.id)) return idleCard(task, hooks.openSettings);
 
-  // With the pulse in, GitHub gets the Mac's richer card and its lists.
-  if (task.id === "integration_github") {
-    const d = get(task.id);
-    const pulse = readPulse(d);
-    if (pulse) {
-      return hooks.detailOpen
-        ? githubDetail(pulse, readStats(d), readActivity(d), hooks.closeDetail)
-        : githubPulseCard(pulse, readStats(d), readActivity(d), hooks.openDetail);
-    }
-  }
-
   switch (task.id) {
     case "integration_resend":
       return resendCard();
-    case "integration_github":
-      return githubCard();
     case "integration_stripe":
       return stripeCard();
     case "integration_notion":

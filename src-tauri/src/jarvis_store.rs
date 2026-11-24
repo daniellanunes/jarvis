@@ -102,6 +102,14 @@ pub struct RoutineItem {
     pub trigger: String,
 }
 
+/// "Carol" → "Carolina Braga": what the user calls a WhatsApp contact.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ContactNickname {
+    pub nick: String,
+    pub contact: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct JarvisData {
@@ -120,6 +128,9 @@ pub struct JarvisData {
     pub reminders: Vec<ReminderItem>,
     pub habits: Vec<HabitItem>,
     pub routines: Vec<RoutineItem>,
+    pub contact_nicknames: Vec<ContactNickname>,
+    /// WhatsApp contacts whose new messages Jarvis announces (and offers to read).
+    pub whatsapp_watch: Vec<String>,
 }
 
 impl Default for JarvisData {
@@ -209,6 +220,8 @@ impl Default for JarvisData {
                     trigger: String::new(),
                 },
             ],
+            contact_nicknames: Vec::new(),
+            whatsapp_watch: Vec::new(),
         };
         populate_projects_into(&mut d);
         d
@@ -863,6 +876,46 @@ pub fn add_reminder_internal(title: &str, time: &str) {
         });
         data.xp += 5;
     });
+}
+
+/// Saves (or changes) a contact nickname.
+pub fn set_nickname(nick: &str, contact: &str) -> Result<(), String> {
+    let (nick, contact) = (nick.trim(), contact.trim());
+    if nick.is_empty() || contact.is_empty() {
+        return Err("Falta o apelido ou o contato.".into());
+    }
+    let key = crate::file_search::fold(nick);
+    update_data(|d| {
+        d.contact_nicknames.retain(|n| crate::file_search::fold(&n.nick) != key);
+        d.contact_nicknames.push(ContactNickname { nick: nick.to_string(), contact: contact.to_string() });
+    })
+}
+
+/// Adds or removes a watched WhatsApp contact. True when the list changed.
+pub fn set_watch(contact: &str, on: bool) -> Result<bool, String> {
+    let c = contact.trim();
+    if c.is_empty() {
+        return Err("Qual contato?".into());
+    }
+    let key = crate::file_search::fold(c);
+    update_data(|d| {
+        let had = d.whatsapp_watch.iter().any(|w| crate::file_search::fold(w) == key);
+        d.whatsapp_watch.retain(|w| crate::file_search::fold(w) != key);
+        if on {
+            d.whatsapp_watch.push(c.to_string());
+        }
+        had != on
+    })
+}
+
+/// Removes a nickname. True when there was one.
+pub fn remove_nickname(nick: &str) -> Result<bool, String> {
+    let key = crate::file_search::fold(nick.trim());
+    update_data(|d| {
+        let before = d.contact_nicknames.len();
+        d.contact_nicknames.retain(|n| crate::file_search::fold(&n.nick) != key);
+        before != d.contact_nicknames.len()
+    })
 }
 
 pub fn add_routine_internal(name: &str, description: &str, targets: Vec<String>) {

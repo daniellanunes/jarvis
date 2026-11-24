@@ -136,11 +136,6 @@ pub fn declarations() -> Vec<Value> {
             "parameters": {"type": "OBJECT", "properties": {"speed_test": {"type": "BOOLEAN"}}}
         }),
         json!({
-            "name": "github_overview",
-            "description": "GitHub do usuário: PRs abertos dele (com CI), reviews pedidas a ele e CI dos repositórios.",
-            "parameters": {"type": "OBJECT", "properties": {}}
-        }),
-        json!({
             "name": "whatsapp_send",
             "description": "Manda uma mensagem de WhatsApp. A primeira chamada NÃO envia: ela prepara e você pergunta ao usuário se pode enviar. Só quando o usuário pediu para mandar mensagem.",
             "parameters": {"type": "OBJECT", "properties": {
@@ -165,6 +160,30 @@ pub fn declarations() -> Vec<Value> {
             }, "required": ["to"]}
         }),
         json!({
+            "name": "whatsapp_call_control",
+            "description": "Controla a ligação do WhatsApp em andamento: encerrar (hangup), atender (accept), recusar (decline) ou ligar/desligar o microfone da ligação (mute). Use SEMPRE esta ferramenta para ligações; nunca media_control.",
+            "parameters": {"type": "OBJECT", "properties": {
+                "action": {"type": "STRING", "enum": ["hangup", "accept", "decline", "mute"]}
+            }, "required": ["action"]}
+        }),
+        json!({
+            "name": "whatsapp_nickname",
+            "description": "Guarda (ou apaga) um apelido para um contato do WhatsApp: 'quando eu falar Carol é a Carolina Braga'. Depois, o apelido funciona em mandar, ler e ligar.",
+            "parameters": {"type": "OBJECT", "properties": {
+                "nick": {"type": "STRING", "description": "O apelido que o usuário vai falar (ex.: 'Carol')."},
+                "contact": {"type": "STRING", "description": "O nome do contato no WhatsApp (ex.: 'Carolina Braga')."},
+                "remove": {"type": "BOOLEAN", "description": "true para apagar o apelido."}
+            }, "required": ["nick"]}
+        }),
+        json!({
+            "name": "whatsapp_watch",
+            "description": "Liga (ou desliga) o aviso de mensagens novas de um contato do WhatsApp: quando ele mandar mensagem, o Jarvis avisa e pergunta se pode ler. Ex.: 'me avisa quando a Carol mandar mensagem'.",
+            "parameters": {"type": "OBJECT", "properties": {
+                "contact": {"type": "STRING", "description": "Nome ou apelido do contato."},
+                "remove": {"type": "BOOLEAN", "description": "true para parar de avisar."}
+            }, "required": ["contact"]}
+        }),
+        json!({
             "name": "whatsapp_unread",
             "description": "Lista as conversas do WhatsApp com mensagens não lidas (nome, quantas e a última). Só quando o usuário perguntar.",
             "parameters": {"type": "OBJECT", "properties": {}}
@@ -176,10 +195,11 @@ pub fn declarations() -> Vec<Value> {
 pub const PROMPT_RULES: &str = r#"
 8. Gmail: SÓ use `gmail_search`/`gmail_read`/`gmail_draft` quando o usuário pedir explicitamente algo sobre e-mail. Nunca mencione, conte ou resuma e-mails por iniciativa própria. Para responder/escrever, crie o rascunho com `gmail_draft`; com send=true o envio fica aguardando Permitir — avise isso.
 9. WhatsApp: SÓ use as ferramentas de WhatsApp quando o usuário pedir explicitamente; nunca leia, conte ou comente mensagens por iniciativa própria. Enviar: chame `whatsapp_send` ("manda pra mim" → to "eu"); ele só PREPARA — repita ao usuário a pessoa e o texto exato e pergunte "Posso enviar?". Se o usuário confirmar, chame `whatsapp_send` de novo com os mesmos dados; se pedir mudança, chame com o texto novo e pergunte de novo. Ler uma conversa: `whatsapp_read`. "Tenho mensagem nova?": `whatsapp_unread`. Escreva a mensagem como o usuário escreveria e resuma o que leu em poucas frases.
+12. Comandos personalizados: "quando eu falar X, abre A, B e C" / "cria um comando X que abre…" → `jarvis_action` kind "routine", value X (a frase exata que o usuário vai falar), extra2 com os programas separados por vírgula como ele falou. Depois, falar X roda a rotina sozinha. Diga o que ficou salvo e avise o que não foi achado. Apelidos de contato ("quando eu falar Carol é a Carolina Braga"): `whatsapp_nickname`; nas ferramentas de WhatsApp pode usar o apelido direto. "Me avisa quando a Carol mandar mensagem": `whatsapp_watch` (o Jarvis avisa, pergunta se pode ler e depois o que responder).
 11. Programas do PC: para usar um programa, abra com `open_target` (se não estiver aberto), aja com `app_type` (digitar/atalhos) ou `app_click` (botões pelo nome) e confira com `app_read`, dizendo o resultado. Ex.: "calcula 125 vezes 8 na calculadora" → open_target "calc", app_type app "calculadora" text "125*8=", app_read "calculadora" → diga o valor. Antes de algo que apaga, envia, compra ou fecha sem salvar, pergunte ao usuário. Arquivos de texto: `file_read` antes de editar e `file_write` para salvar (a versão anterior fica guardada; avise onde).
 10. "Bom dia", "como está meu dia", "o que tenho hoje": chame `daily_briefing` e responda em 2-4 frases naturais.
 11. Arquivos: `file_search` e depois `file_open`. Notas/Obsidian: `notes_search`, `notes_read`, `notes_write` ("anota isso…").
-12. Som: `audio_output` para trocar fone/caixa; `mic_mute` para o microfone; `set_volume` para volume. Internet lenta/caiu: `internet_status`. GitHub: `github_overview`.
+12. Som: `audio_output` para trocar fone/caixa; `mic_mute` para o microfone; `set_volume` para volume. Internet lenta/caiu: `internet_status`.
 13. Mídia: `media_control` funciona em qualquer app tocando (YouTube, VLC, Netflix…), não só no Spotify.
 14. "Abre/abri X" (abri é como a transcrição escreve "abre"): para PROGRAMAS chame `open_target` só com o nome do app (ex.: "OpenBot", "Obsidian", "Steam") — ele acha o atalho no menu Iniciar. Nunca abra notas, .md ou arquivos soltos para atender "abre X" a menos que o usuário peça um arquivo. Responda sobre o app que ele pediu, não sobre o pedido anterior."#;
 
@@ -203,10 +223,12 @@ pub fn status_line(name: &str, args: &Value) -> Option<(String, String)> {
         "audio_output" => ("Trocando a saída de som…".into(), s("device")),
         "mic_mute" => ("Microfone…".into(), String::new()),
         "internet_status" => ("Testando a internet…".into(), String::new()),
-        "github_overview" => ("Olhando o GitHub…".into(), String::new()),
         "whatsapp_send" => ("Preparando mensagem…".into(), s("to")),
         "whatsapp_read" => ("Lendo o WhatsApp…".into(), s("chat")),
         "whatsapp_unread" => ("Vendo o WhatsApp…".into(), String::new()),
+        "whatsapp_watch" => ("Configurando o aviso…".into(), s("contact")),
+        "whatsapp_call_control" => ("Na ligação…".into(), s("action")),
+        "whatsapp_nickname" => ("Guardando o apelido…".into(), s("nick")),
         "whatsapp_call" => ("Preparando a ligação…".into(), s("to")),
         _ => return None,
     })
@@ -302,20 +324,6 @@ pub async fn jarvis_briefing() -> String {
     briefing_speech(&user).await
 }
 
-/// GitHub overview for the tab and the tool.
-pub async fn github_overview() -> Result<crate::github::GitHubPulse, String> {
-    let token = crate::secrets::get("github-token").ok_or("GitHub não conectado. Cole um token na aba GitHub.")?;
-    let root = crate::integrations::github_graphql(&token, crate::github::PULSE_QUERY, "tab")
-        .await
-        .ok_or("GitHub não respondeu (token inválido ou sem conexão).")?;
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
-    crate::github::GitHubPulse::parse(&root, now).ok_or_else(|| "Resposta do GitHub sem dados.".into())
-}
-
-#[tauri::command]
-pub async fn jarvis_github_overview() -> Result<crate::github::GitHubPulse, String> {
-    github_overview().await
-}
 
 /// Runs a confirmed e-mail / WhatsApp. None = not one of these kinds.
 pub async fn run_confirmed(kind: &str, command: &str) -> Option<Result<String, String>> {
@@ -427,7 +435,6 @@ pub async fn run(
                 Some(ms) => Ok(format!("Internet ok: ping {ms} ms.")),
             }
         }
-        "github_overview" => github_overview().await.map(|p| serde_json::to_string(&p).unwrap_or_default()),
         "whatsapp_send" => match (s("to"), s("message")) {
             // Confirmed in the conversation, not with a button: the first call
             // holds it and Jarvis asks "Posso enviar?" (whatsapp.rs).
@@ -442,6 +449,26 @@ pub async fn run(
             None => Err("Qual conversa?".into()),
         },
         "whatsapp_unread" => crate::whatsapp::unread().await,
+        "whatsapp_call_control" => match s("action").as_deref() {
+            Some(a @ ("hangup" | "accept" | "decline" | "mute")) => crate::whatsapp::call_action(a).await.map(|c| {
+                if c.state == "none" {
+                    "Feito. Não há mais ligação.".to_string()
+                } else {
+                    format!("Feito. Ligação: {}{}.", c.state, if c.mic_off { ", microfone desligado" } else { "" })
+                }
+            }),
+            _ => Err("Ação de ligação desconhecida.".into()),
+        },
+        "whatsapp_watch" => match s("contact") {
+            Some(c) => crate::whatsapp::watch(&c, !args["remove"].as_bool().unwrap_or(false)),
+            None => Err("Qual contato?".into()),
+        },
+        "whatsapp_nickname" => match (s("nick"), s("contact")) {
+            (Some(nick), _) if args["remove"].as_bool().unwrap_or(false) => crate::jarvis_store::remove_nickname(&nick)
+                .map(|had| if had { format!("Apaguei o apelido \"{nick}\".") } else { format!("Não havia o apelido \"{nick}\".") }),
+            (Some(nick), Some(contact)) => crate::whatsapp::add_nickname(&nick, &contact).await,
+            _ => Err("Falta o apelido ou o contato.".into()),
+        },
         "whatsapp_call" => match s("to") {
             Some(to) => Ok(format!(
                 "Ligação PREPARADA, ainda não feita. Responda ao usuário exatamente: {}",

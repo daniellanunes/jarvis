@@ -31,10 +31,9 @@ acha arquivos, anota no Obsidian, mostra clima, uso do PC e FPS dos jogos — tu
   - [3. Seu nome e suas pastas](#3-seu-nome-e-suas-pastas)
   - [4. Google Agenda e Gmail](#4-google-agenda-e-gmail)
   - [5. Spotify](#5-spotify)
-  - [6. GitHub](#6-github)
-  - [7. O notch: clima, uso do PC, FPS e mais](#7-o-notch-clima-uso-do-pc-fps-e-mais)
-  - [8. WhatsApp](#8-whatsapp)
-  - [9. OpenBot (opcional)](#9-openbot-opcional)
+  - [6. O notch: clima, uso do PC, FPS e mais](#6-o-notch-clima-uso-do-pc-fps-e-mais)
+  - [7. WhatsApp](#7-whatsapp)
+  - [8. OpenBot (opcional)](#8-openbot-opcional)
 - [Usando no dia a dia](#usando-no-dia-a-dia)
 - [Privacidade e segurança](#privacidade-e-segurança)
 - [Solução de problemas](#solução-de-problemas)
@@ -95,10 +94,10 @@ Clique no notch para abrir o painel.
 | <img src="docs/images/panel-files.png" alt="Arquivos"> | <img src="docs/images/panel-notes.png" alt="Notas"> |
 | Busca instantânea por nome nas suas pastas; abrir ou mostrar na pasta. | Busca, leitura e **anotação rápida** no seu vault. |
 
-| GitHub | Meu PC |
-|---|---|
-| <img src="docs/images/panel-github.png" alt="GitHub"> | <img src="docs/images/panel-pc.png" alt="Meu PC"> |
-| Reviews pedidas a você, seus PRs abertos e CI que falhou. | Saída de som (fone/caixa/monitor), volume, microfone, teste de velocidade e mais. |
+| Meu PC |
+|---|
+| <img src="docs/images/panel-pc.png" alt="Meu PC" width="420"> |
+| Saída de som (fone/caixa/monitor), volume, microfone, teste de velocidade e mais. |
 
 | Rotinas | IA com troca automática |
 |---|---|
@@ -286,12 +285,7 @@ Precisa de **Spotify Premium** (o Spotify só deixa outros apps controlarem a m�
 
 Agora “toca Dawn FM do The Weeknd” toca **exatamente** isso.
 
-### 6. GitHub
-
-1. Crie um token em [github.com/settings/tokens](https://github.com/settings/tokens) → **Generate new token (classic)** com os escopos `repo` e `read:org`.
-2. No Jarvis, aba **GitHub** → cole o token → **Conectar**.
-
-### 7. O notch: clima, uso do PC, FPS e mais
+### 6. O notch: clima, uso do PC, FPS e mais
 
 Ajustes → **Notch**:
 
@@ -315,7 +309,7 @@ Ajustes → **Notch**:
 
 **Temperatura de CPU/GPU:** o Windows não tem um jeito próprio de ler esses sensores. Abra o [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) (deixe rodando) e a temperatura aparece ao passar o mouse nos círculos.
 
-### 8. WhatsApp
+### 7. WhatsApp
 
 O WhatsApp fica **dentro do Jarvis**, numa aba do notch com o jeito do WhatsApp — sem navegador por fora. Ele carrega junto com o Jarvis.
 
@@ -333,7 +327,7 @@ Por voz: “manda no WhatsApp pra mim: comprar pão”, “lê a conversa com a 
 
 > A sessão fica só no seu PC (`%LOCALAPPDATA%\OpenJarvis\whatsapp-web`). Para desconectar, remova o aparelho em *Aparelhos conectados* no celular.
 
-### 9. OpenBot (opcional)
+### 8. OpenBot (opcional)
 
 Se você usa um OpenBot próprio, o Jarvis pode delegar tarefas de programação para ele (e, se o WhatsApp não estiver conectado no Jarvis, mandar mensagens por ele):
 
@@ -495,7 +489,7 @@ As imagens deste README saem dela: `python scripts/readme_shots.py` (precisa de 
 src/                        front-end (TypeScript, sem framework)
   jarvis/notch_app.ts       notch + painel (abas, ajustes)
   jarvis/notch_widgets.ts   clima, círculos do PC, FPS, ping
-  jarvis/tool_tabs.ts       abas E-mail, WhatsApp, Arquivos, Notas, GitHub, áudio
+  jarvis/tool_tabs.ts       abas E-mail, WhatsApp, Arquivos, Notas, áudio
   jarvis/voice.ts           voz: escuta, comando, resposta falada (sem markdown)
   jarvis/glass.css          visuais Cristal e Meia-noite (sobre o Grafite, notch_v2.css)
   jarvis/agenda_panel.ts    Agenda (Semana/Mês/Ano)

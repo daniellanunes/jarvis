@@ -397,17 +397,6 @@
    "ru": "Выберите модель",
    "id": "Pilih model"
   },
-  "Classic token with the repo scope, or fine-grained with read access to Pull requests, Commit statuses and Actions.": {
-   "zh-Hans": "带 repo 权限范围的经典令牌，或对 Pull requests、Commit statuses 和 Actions 具有读取权限的细粒度令牌。",
-   "hi": "repo स्कोप वाला क्लासिक टोकन, या Pull requests, Commit statuses और Actions पर पढ़ने की अनुमति वाला fine-grained टोकन।",
-   "es": "Token clásico con el alcance repo, o detallado (fine-grained) con acceso de lectura a Pull requests, Commit statuses y Actions.",
-   "ar": "رمز كلاسيكي بنطاق repo، أو رمز دقيق الصلاحيات مع إذن قراءة لـ Pull requests وCommit statuses وActions.",
-   "fr": "Jeton classique avec la portée repo, ou à granularité fine avec un accès en lecture aux Pull requests, Commit statuses et Actions.",
-   "bn": "repo স্কোপসহ ক্লাসিক টোকেন, অথবা Pull requests, Commit statuses ও Actions-এ পড়ার অনুমতিসহ fine-grained টোকেন।",
-   "pt-BR": "Token clássico com o escopo repo, ou refinado (fine-grained) com acesso de leitura a Pull requests, Commit statuses e Actions.",
-   "ru": "Классический токен с областью repo или детализированный (fine-grained) с доступом на чтение к Pull requests, Commit statuses и Actions.",
-   "id": "Token klasik dengan cakupan repo, atau fine-grained dengan akses baca ke Pull requests, Commit statuses, dan Actions."
-  },
   "Claude declined this one.": {
    "zh-Hans": "Claude 拒绝了这个请求。",
    "hi": "Claude ने इसे मना कर दिया।",
@@ -671,17 +660,6 @@
    "pt-BR": "Servidor personalizado",
    "ru": "Свой сервер",
    "id": "Server kustom"
-  },
-  "Default branch CI": {
-   "zh-Hans": "默认分支 CI",
-   "hi": "डिफ़ॉल्ट ब्रांच CI",
-   "es": "CI de la rama principal",
-   "ar": "CI للفرع الافتراضي",
-   "fr": "CI de la branche par défaut",
-   "bn": "ডিফল্ট ব্রাঞ্চ CI",
-   "pt-BR": "CI do branch padrão",
-   "ru": "CI основной ветки",
-   "id": "CI cabang utama"
   },
   "Deployment": {
    "zh-Hans": "部署",
@@ -1783,17 +1761,6 @@
    "ru": "Удалить",
    "id": "Hapus"
   },
-  "Repositories": {
-   "zh-Hans": "仓库",
-   "hi": "रिपॉज़िटरी",
-   "es": "Repositorios",
-   "ar": "المستودعات",
-   "fr": "Dépôts",
-   "bn": "রিপোজিটরি",
-   "pt-BR": "Repositórios",
-   "ru": "Репозитории",
-   "id": "Repositori"
-  },
   "Reset to defaults": {
    "zh-Hans": "恢复默认",
    "hi": "डिफ़ॉल्ट पर रीसेट करें",
@@ -2454,28 +2421,6 @@
    "ru": "У токена нет доступа",
    "id": "Token tidak punya akses"
   },
-  "Token lacks the needed scope": {
-   "zh-Hans": "令牌缺少所需的权限范围",
-   "hi": "टोकन में ज़रूरी स्कोप नहीं है",
-   "es": "Al token le falta el alcance necesario",
-   "ar": "يفتقر الرمز إلى النطاق المطلوب",
-   "fr": "Il manque au jeton la portée nécessaire",
-   "bn": "টোকেনে প্রয়োজনীয় স্কোপ নেই",
-   "pt-BR": "Falta ao token o escopo necessário",
-   "ru": "У токена нет нужной области доступа",
-   "id": "Token tidak memiliki cakupan yang diperlukan"
-  },
-  "Total stars": {
-   "zh-Hans": "星标总数",
-   "hi": "कुल स्टार",
-   "es": "Estrellas totales",
-   "ar": "إجمالي النجوم",
-   "fr": "Étoiles au total",
-   "bn": "মোট স্টার",
-   "pt-BR": "Total de estrelas",
-   "ru": "Всего звёзд",
-   "id": "Total bintang"
-  },
   "Tuesday": {
    "zh-Hans": "星期二",
    "hi": "मंगलवार",
@@ -2751,17 +2696,6 @@
    "ru": "Если какое-то не работает, его можно добавить и в настройках клавиатуры системы с такими командами:",
    "id": "Jika salah satunya tidak berfungsi, Anda juga bisa menambahkannya di pengaturan keyboard sistem dengan perintah berikut:"
   },
-  "all green": {
-   "zh-Hans": "全部通过",
-   "hi": "सब हरा",
-   "es": "todo en verde",
-   "ar": "كلها خضراء",
-   "fr": "tout est vert",
-   "bn": "সব সবুজ",
-   "pt-BR": "tudo verde",
-   "ru": "всё зелёное",
-   "id": "semua hijau"
-  },
   "openjarvis-hook.exe is not in place yet. Restart OpenJarvis; if it still fails, build it with `cargo build -p openjarvis-hook`.": {
    "zh-Hans": "openjarvis-hook.exe 尚未就位。请重启 OpenJarvis；如果仍然失败，请用 `cargo build -p openjarvis-hook` 构建它。",
    "hi": "openjarvis-hook.exe अभी अपनी जगह पर नहीं है। OpenJarvis फिर से शुरू करें; अगर फिर भी न हो, तो इसे `cargo build -p openjarvis-hook` से बनाएँ।",
@@ -2772,17 +2706,6 @@
    "pt-BR": "O openjarvis-hook.exe ainda não está no lugar. Reinicie o OpenJarvis; se continuar falhando, compile-o com `cargo build -p openjarvis-hook`.",
    "ru": "openjarvis-hook.exe ещё не на месте. Перезапустите OpenJarvis; если не поможет, соберите его командой `cargo build -p openjarvis-hook`.",
    "id": "openjarvis-hook.exe belum ada di tempatnya. Mulai ulang OpenJarvis; jika masih gagal, build dengan `cargo build -p openjarvis-hook`."
-  },
-  "failing": {
-   "zh-Hans": "失败",
-   "hi": "विफल",
-   "es": "con fallos",
-   "ar": "فاشل",
-   "fr": "en échec",
-   "bn": "ব্যর্থ",
-   "pt-BR": "falhando",
-   "ru": "с ошибками",
-   "id": "gagal"
   },
   "finished": {
    "zh-Hans": "已完成",
@@ -2850,17 +2773,6 @@
    "ru": "строк",
    "id": "baris"
   },
-  "no repos": {
-   "zh-Hans": "没有仓库",
-   "hi": "कोई रिपॉज़िटरी नहीं",
-   "es": "sin repositorios",
-   "ar": "لا مستودعات",
-   "fr": "aucun dépôt",
-   "bn": "কোনো রিপোজিটরি নেই",
-   "pt-BR": "nenhum repositório",
-   "ru": "нет репозиториев",
-   "id": "tidak ada repositori"
-  },
   "not installed": {
    "zh-Hans": "未安装",
    "hi": "इंस्टॉल नहीं है",
@@ -2871,28 +2783,6 @@
    "pt-BR": "não instalado",
    "ru": "не установлен",
    "id": "belum terpasang"
-  },
-  "passing": {
-   "zh-Hans": "通过",
-   "hi": "सफल",
-   "es": "correcto",
-   "ar": "ناجح",
-   "fr": "réussi",
-   "bn": "সফল",
-   "pt-BR": "passando",
-   "ru": "успешно",
-   "id": "lulus"
-  },
-  "running": {
-   "zh-Hans": "运行中",
-   "hi": "चल रहा है",
-   "es": "en curso",
-   "ar": "قيد التشغيل",
-   "fr": "en cours",
-   "bn": "চলছে",
-   "pt-BR": "em execução",
-   "ru": "выполняется",
-   "id": "berjalan"
   },
   "seconds after you leave the island": {
    "zh-Hans": "鼠标离开岛后的秒数",
@@ -2916,17 +2806,6 @@
    "ru": "settings.json: у {what} неожиданный тип — OpenJarvis его не трогал.",
    "id": "settings.json: {what} bertipe tak terduga — OpenJarvis tidak menyentuhnya."
   },
-  "unknown": {
-   "zh-Hans": "未知",
-   "hi": "अज्ञात",
-   "es": "desconocido",
-   "ar": "غير معروف",
-   "fr": "inconnu",
-   "bn": "অজানা",
-   "pt-BR": "desconhecido",
-   "ru": "неизвестно",
-   "id": "tidak diketahui"
-  },
   "{allowed} allowed, {denied} denied": {
    "zh-Hans": "允许 {allowed} 次，拒绝 {denied} 次",
    "hi": "{allowed} अनुमत, {denied} अस्वीकृत",
@@ -2937,48 +2816,6 @@
    "pt-BR": "{allowed} permitidas, {denied} negadas",
    "ru": "разрешено: {allowed}, отклонено: {denied}",
    "id": "{allowed} diizinkan, {denied} ditolak"
-  },
-  "{count} contributions": {
-   "zh-Hans": {
-    "other": "{count} 次贡献"
-   },
-   "hi": {
-    "one": "{count} योगदान",
-    "other": "{count} योगदान"
-   },
-   "es": {
-    "one": "{count} contribución",
-    "other": "{count} contribuciones"
-   },
-   "ar": {
-    "zero": "{count} مساهمة",
-    "one": "مساهمة واحدة",
-    "two": "مساهمتان",
-    "few": "{count} مساهمات",
-    "many": "{count} مساهمة",
-    "other": "{count} مساهمة"
-   },
-   "fr": {
-    "one": "{count} contribution",
-    "other": "{count} contributions"
-   },
-   "bn": {
-    "one": "{count}টি অবদান",
-    "other": "{count}টি অবদান"
-   },
-   "pt-BR": {
-    "one": "{count} contribuição",
-    "other": "{count} contribuições"
-   },
-   "ru": {
-    "one": "{count} вклад",
-    "few": "{count} вклада",
-    "many": "{count} вкладов",
-    "other": "{count} вклада"
-   },
-   "id": {
-    "other": "{count} kontribusi"
-   }
   },
   "{count} models": {
    "zh-Hans": {
@@ -3020,48 +2857,6 @@
    },
    "id": {
     "other": "{count} model"
-   }
-  },
-  "{count} repos": {
-   "zh-Hans": {
-    "other": "{count} 个仓库"
-   },
-   "hi": {
-    "one": "{count} रिपॉज़िटरी",
-    "other": "{count} रिपॉज़िटरी"
-   },
-   "es": {
-    "one": "{count} repositorio",
-    "other": "{count} repositorios"
-   },
-   "ar": {
-    "zero": "{count} مستودع",
-    "one": "مستودع واحد",
-    "two": "مستودعان",
-    "few": "{count} مستودعات",
-    "many": "{count} مستودعًا",
-    "other": "{count} مستودع"
-   },
-   "fr": {
-    "one": "{count} dépôt",
-    "other": "{count} dépôts"
-   },
-   "bn": {
-    "one": "{count}টি রিপোজিটরি",
-    "other": "{count}টি রিপোজিটরি"
-   },
-   "pt-BR": {
-    "one": "{count} repositório",
-    "other": "{count} repositórios"
-   },
-   "ru": {
-    "one": "{count} репозиторий",
-    "few": "{count} репозитория",
-    "many": "{count} репозиториев",
-    "other": "{count} репозитория"
-   },
-   "id": {
-    "other": "{count} repositori"
    }
   },
   "{file} isn't UTF-8 text — OpenJarvis won't touch it.": {
@@ -3272,17 +3067,6 @@
    "pt-BR": "há {time}",
    "ru": "{time} назад",
    "id": "{time} yang lalu"
-  },
-  "{total} past year": {
-   "zh-Hans": "过去一年 {total}",
-   "hi": "पिछले वर्ष {total}",
-   "es": "{total} el último año",
-   "ar": "{total} في العام الماضي",
-   "fr": "{total} sur un an",
-   "bn": "গত বছরে {total}",
-   "pt-BR": "{total} no último ano",
-   "ru": "{total} за год",
-   "id": "{total} setahun terakhir"
   },
   "{used}/{max} slots in use — the main tool doesn't take one.": {
    "zh-Hans": "已用 {used}/{max} 个位置 — 主要工具不占位置。",

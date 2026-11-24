@@ -478,8 +478,17 @@ pub async fn spotify_devices() -> Result<Vec<Device>, String> {
     devices().await
 }
 
+/// Spotify closed: start it now, so it boots while the search runs.
+async fn wake_app() {
+    if devices().await.is_ok_and(|d| d.is_empty()) {
+        crate::log::line("spotify: app fechado; abrindo antes de tocar");
+        let _ = crate::jarvis_pc::jarvis_open_target("spotify".into());
+    }
+}
+
 /// The device to play on: the active one, else this PC's Spotify app (started
-/// if needed, waiting up to ~8 s for it to register with Spotify Connect).
+/// if needed). Right after the PC starts, or while Spotify updates or signs
+/// in, it can take 15-20 s to register with Spotify Connect: wait up to 30 s.
 async fn ensure_device() -> Result<String, String> {
     let host = std::env::var("COMPUTERNAME").unwrap_or_default().to_lowercase();
     let pick = |list: &[Device]| -> Option<String> {
@@ -494,13 +503,16 @@ async fn ensure_device() -> Result<String, String> {
         return Ok(id);
     }
     let _ = crate::jarvis_pc::jarvis_open_target("spotify".into());
-    for _ in 0..16 {
+    let started = std::time::Instant::now();
+    while started.elapsed() < Duration::from_secs(30) {
         tokio::time::sleep(Duration::from_millis(500)).await;
         if let Some(id) = pick(&devices().await.unwrap_or_default()) {
+            crate::log::line(format!("spotify: pronto em {:.1}s", started.elapsed().as_secs_f32()));
             return Ok(id);
         }
     }
-    Err("Não encontrei o Spotify aberto em nenhum dispositivo. Abra o app do Spotify e tente de novo.".into())
+    crate::log::line("spotify: o app não apareceu no Spotify Connect em 30 s");
+    Err("Abri o Spotify, mas ele não ficou pronto em 30 segundos. Confira se ele entrou na sua conta e peça de novo.".into())
 }
 
 /// Plays a URI: a track (optionally inside its album/playlist context) or a
@@ -519,13 +531,19 @@ pub async fn play_uri(uri: &str, context: Option<&str>) -> Result<(), String> {
     match call(reqwest::Method::PUT, &path, Some(body.clone())).await {
         Ok(_) => Ok(()),
         Err(e) if e == "NO_DEVICE" => {
-            // The app was asleep: wake it on this device, then play.
-            let _ = call(reqwest::Method::PUT, "/me/player", Some(json!({ "device_ids": [device], "play": false }))).await;
-            tokio::time::sleep(Duration::from_millis(600)).await;
-            call(reqwest::Method::PUT, &path, Some(body))
-                .await
-                .map(|_| ())
-                .map_err(|e| if e == "NO_DEVICE" { "Spotify não respondeu no dispositivo.".into() } else { e })
+            // The app was asleep or still starting: wake it on this device,
+            // then play — a few times, it can take some seconds to accept.
+            for attempt in 0..8 {
+                let _ = call(reqwest::Method::PUT, "/me/player", Some(json!({ "device_ids": [device], "play": false }))).await;
+                tokio::time::sleep(Duration::from_millis(if attempt == 0 { 600 } else { 1200 })).await;
+                match call(reqwest::Method::PUT, &path, Some(body.clone())).await {
+                    Ok(_) => return Ok(()),
+                    Err(e) if e == "NO_DEVICE" => continue,
+                    Err(e) => return Err(e),
+                }
+            }
+            crate::log::line("spotify: o app não aceitou tocar (NO_DEVICE)");
+            Err("O Spotify abriu, mas não aceitou tocar ainda. Peça de novo em alguns segundos.".into())
         }
         Err(e) => Err(e),
     }
@@ -602,6 +620,7 @@ fn similarity(a: &str, b: &str) -> f32 {
 /// "toca X": resolves X to the best match and plays it. For playlists the
 /// user's own playlists are checked first ("toca minha playlist de treino").
 pub async fn play_query(query: &str, hint: Option<&str>) -> Result<String, String> {
+    wake_app().await;
     let (kind, q) = classify(query, hint);
     if q.trim().is_empty() {
         call(reqwest::Method::PUT, &format!("/me/player/play?device_id={}", ensure_device().await?), None).await?;
@@ -789,5 +808,56 @@ mod tests {
     fn query_params_are_decoded() {
         assert_eq!(query_param("/callback?code=a%2Bb&state=x", "code").as_deref(), Some("a+b"));
         assert_eq!(query_param("/callback?state=x", "code"), None);
+    }
+}
+
+#[cfg(all(test, windows))]
+mod live_device {
+    /// How long a closed Spotify takes to show up as a device. By hand:
+    /// cargo test --lib spotify_api::live_device -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn closed_spotify_shows_up_as_a_device() {
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        crate::jarvis_config::apply_settings(&crate::settings::load());
+        rt.block_on(async {
+            println!("conectado: {}", super::connected());
+            println!("antes: {:?}", super::devices().await.map(|d| d.iter().map(|x| x.name.clone()).collect::<Vec<_>>()));
+            let t = std::time::Instant::now();
+            let _ = crate::jarvis_pc::jarvis_open_target("spotify".into());
+            for _ in 0..60 {
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                let d = super::devices().await;
+                if let Ok(list) = &d {
+                    if !list.is_empty() {
+                        println!("apareceu em {:.1}s: {:?}", t.elapsed().as_secs_f32(), list.iter().map(|x| (&x.name, &x.kind, x.active)).collect::<Vec<_>>());
+                        return;
+                    }
+                } else {
+                    println!("erro: {d:?}");
+                }
+            }
+            println!("não apareceu em {:.1}s", t.elapsed().as_secs_f32());
+        });
+    }
+}
+
+#[cfg(all(test, windows))]
+mod live_play {
+    /// The whole "toca X" with Spotify closed. By hand:
+    /// cargo test --lib spotify_api::live_play -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn plays_with_spotify_closed() {
+        crate::jarvis_config::apply_settings(&crate::settings::load());
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        rt.block_on(async {
+            let t = std::time::Instant::now();
+            let r = super::play_query("The Kill Thirty Seconds to Mars", None).await;
+            println!("resultado em {:.1}s: {r:?}", t.elapsed().as_secs_f32());
+            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+            println!("estado: {:?}", super::state().await.map(|s| s.map(|s| (s.playing, s.title, s.device))));
+            let _ = super::control("pause", None, None).await;
+        });
     }
 }

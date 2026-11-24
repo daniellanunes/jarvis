@@ -639,9 +639,18 @@ async fn jarvis_ask_inner(
     if let Some(text) = crate::whatsapp::answer_held(&prompt).await {
         return Ok(JarvisReply { text, provider_used: "WhatsApp".to_string(), actions: Vec::new(), pending_actions: Vec::new() });
     }
+    // "Desliga a ligação", "atende", "muta": the WhatsApp call, at once.
+    if let Some(text) = crate::whatsapp::quick_call_control(&prompt).await {
+        return Ok(JarvisReply { text, provider_used: "WhatsApp".to_string(), actions: Vec::new(), pending_actions: Vec::new() });
+    }
     // "Liga para X (no WhatsApp)": asked back at once, no AI round trip.
     if let Some(text) = crate::whatsapp::quick_call(&prompt) {
         return Ok(JarvisReply { text, provider_used: "WhatsApp".to_string(), actions: Vec::new(), pending_actions: Vec::new() });
+    }
+    // A routine's name said ("modo trabalho"): it runs at once.
+    if let Some(name) = crate::routines::spoken(&prompt) {
+        let text = crate::routines::run_spoken(app, &name).await;
+        return Ok(JarvisReply { text, provider_used: "Rotina".to_string(), actions: Vec::new(), pending_actions: Vec::new() });
     }
 
     // Simple, unambiguous commands run right away, with no AI round trip.
@@ -1660,7 +1669,7 @@ fn gemini_tool_declarations() -> serde_json::Value {
                         },
                         "value": { "type": "STRING", "description": "Título, fato, nome da rotina, minutos ou nome da aba." },
                         "extra": { "type": "STRING", "description": "Horário HH:MM, descrição da rotina, categoria de memória ou nome do timer." },
-                        "extra2": { "type": "STRING", "description": "Alvos da rotina separados por vírgula ou notas da memória." }
+                        "extra2": { "type": "STRING", "description": "Passos da rotina separados por vírgula (nomes dos programas como o usuário falou: 'obs, antigravity, obsidian'; também 'close:chrome', 'spotify:lofi', 'volume:30', 'say:texto') ou notas da memória." }
                     },
                     "required": ["kind", "value"]
                 }
@@ -2147,8 +2156,25 @@ async fn execute_native_tool(
                         .map(|s| s.trim().to_string())
                         .filter(|s| !s.is_empty())
                         .collect();
-                    jarvis_store::add_routine_internal(val, desc, targets);
-                    Ok(format!("Rotina '{val}' criada"))
+                    // Said back: what each step will open, and what is not on the PC.
+                    let mut found = Vec::new();
+                    let mut missing = Vec::new();
+                    for t in &targets {
+                        match crate::routines::parse_step(t) {
+                            ("open", v) => match jarvis_pc::opens_what(&v) {
+                                Some(label) => found.push(label),
+                                None => missing.push(v),
+                            },
+                            _ => found.push(t.clone()),
+                        }
+                    }
+                    let desc = if extra.is_empty() { found.join(", ") } else { desc.to_string() };
+                    jarvis_store::add_routine_internal(val, &desc, targets);
+                    Ok(format!(
+                        "Rotina '{val}' salva: {}. Para rodar, o usuário diz só \"{val}\".{}",
+                        if found.is_empty() { "nenhum passo".into() } else { found.join(", ") },
+                        if missing.is_empty() { String::new() } else { format!(" ATENÇÃO, não achei instalado: {} — avise o usuário.", missing.join(", ")) }
+                    ))
                 }
                 "run_routine" => crate::routines::run_named(app, val).await,
                 other => Err(format!("Ação Jarvis desconhecida: {other}")),
