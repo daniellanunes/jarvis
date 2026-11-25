@@ -894,6 +894,7 @@ pub fn run() {
             media_sessions::media_control,
             media_sessions::player_control,
             obs::obs_test,
+            jarvis_browser::browser_login_open,
             selection::jarvis_selected_text,
             selection::jarvis_copy_text,
             pc_monitor::net_speed_test,

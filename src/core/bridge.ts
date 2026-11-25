@@ -373,6 +373,8 @@ export const Bridge = {
   playerControl: (action: string, title?: string) => callOrThrow<string>("player_control", { action, title: title ?? null }),
   /** Ajustes: whether OBS answers on its WebSocket server. */
   obsTest: () => callOrThrow<string>("obs_test"),
+  /** Opens the Jarvis browser on a sign-in page, for the user to log in once. */
+  browserLoginOpen: (url?: string) => callOrThrow<string>("browser_login_open", { url: url ?? null }),
   /** Ajustes → Sobre: the configuration backup (a file in Documentos). */
   configExport: () => callOrThrow<string>("jarvis_config_export"),
   configImport: (text: string) => callOrThrow<{ message: string; settings: Record<string, unknown> }>("jarvis_config_import", { text }),

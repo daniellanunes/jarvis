@@ -2702,6 +2702,36 @@ export async function startJarvisNotch(root: HTMLElement) {
     );
   }
 
+  /** The Jarvis browser keeps its own logins: sign in there once per site. */
+  function renderBrowserLogins(): HTMLElement {
+    const status = h("div", { class: "tt-hint", style: "margin:6px 0 0" });
+    const go = (url: string) => async () => {
+      status.textContent = "Abrindo…";
+      status.textContent = await Bridge.browserLoginOpen(url).catch((e) => String(e).replace(/^Error:\s*/, ""));
+    };
+    const site = (label: string, url: string) => h("button", { class: "btn btn-ghost btn-sm", text: label, onclick: () => void go(url)() });
+    return h(
+      "div",
+      { class: "tt-card", style: "margin-bottom:8px" },
+      h("div", { class: "tt-card-title", text: "Logins do navegador do Jarvis" }),
+      h(
+        "div",
+        { class: "row", style: "gap:6px;flex-wrap:wrap" },
+        site("Google / YouTube", "https://accounts.google.com"),
+        site("Instagram", "https://www.instagram.com/accounts/login/"),
+        site("Facebook", "https://www.facebook.com/login"),
+        site("X (Twitter)", "https://x.com/i/flow/login"),
+        site("Outro site…", "https://www.google.com"),
+      ),
+      status,
+      h("div", {
+        class: "tt-hint",
+        style: "margin:6px 0 0",
+        text: "Quando o Jarvis precisa mexer num site (buscar, clicar, preencher), ele usa um navegador próprio — o Chrome não deixa controlar o seu perfil principal. Entre nas suas contas nele uma vez: o login fica salvo. Para só abrir um site (“abre o YouTube”), ele usa o seu navegador normal, já logado.",
+      }),
+    );
+  }
+
   /** OBS by voice: its WebSocket password in the Windows vault, and a test. */
   function renderObsSettings(): HTMLElement {
     const input = h("input", { class: "input", type: "password", placeholder: "Senha do servidor WebSocket do OBS", style: "flex:1;height:34px" }) as HTMLInputElement;
@@ -3605,6 +3635,7 @@ export async function startJarvisNotch(root: HTMLElement) {
       sectionHead("Pastas e integrações"),
       renderEditorPicker(),
       renderObsSettings(),
+      renderBrowserLogins(),
       renderFolderSettings(),
       sectionHead("Sobre"),
       renderBackup(),
