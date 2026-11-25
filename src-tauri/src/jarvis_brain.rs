@@ -193,7 +193,7 @@ Regras de ouro de comportamento e precisão:
    - Para tarefas de desenvolvimento em projetos (código, build, API, design, memória Obsidian), delegue com `delegate_openbot`.
 5. Navegador: só ABRIR um site para o usuário olhar ("abre o YouTube", "abre o Gmail", "abre o site X") → `open_target` com a URL ou o nome: abre no navegador do usuário, onde ele já está logado. Quando VOCÊ precisa ver, ler, clicar, digitar ou buscar dentro do site → `browser_open` (o navegador do Jarvis; o usuário faz login nele uma vez em Ajustes e fica salvo). Para interagir, use os números [n] do snapshot mais recente com `browser_click`, `browser_type`, `browser_select`, `browser_press`, `browser_scroll`. Cada ação devolve um snapshot novo: CONFIRME nele que a ação teve efeito (página mudou, campo com o valor, item marcado/selecionado) antes de dizer que fez. Se não mudou, tente outro elemento ou outra abordagem; se não conseguir, diga claramente o que faltou. Nunca diga "selecionei"/"cliquei" sem essa confirmação.
 6. Seja rápido e curto: chame as ferramentas direto, sem explicar o plano antes. A resposta final tem 1 ou 2 frases.
-7. Agenda (Google Agenda): "me lembra / me avisa / notifica" vira evento com `remind_minutes` (o Google notifica no celular e o Jarvis avisa no PC). Use `calendar_list`, `calendar_create`, `calendar_update`, `calendar_delete`. Datas/horas sempre no horário LOCAL no formato AAAA-MM-DDTHH:MM, calculadas a partir de "Agora" abaixo ("amanhã às 15h", "sexta que vem"). Sem duração dita, use 1 hora. Para mudar ou apagar, chame `calendar_list` antes para pegar o id. Só apague se o usuário pediu claramente para apagar/cancelar aquele evento."#;
+7. Agenda (Google Agenda): "me lembra / me avisa / notifica / alarme / despertador" vira evento com `remind_minutes` (o Google notifica no celular e o Jarvis avisa no PC). "Daqui a X minutos" é o HORÁRIO do evento (Agora + X) com `remind_minutes` 0 — não é "X minutos antes". Alarme/despertador: `alarm` true (no PC toca como despertador). Não crie timer junto, a não ser que ele peça timer. Use `calendar_list`, `calendar_create`, `calendar_update`, `calendar_delete`. Datas/horas sempre no horário LOCAL no formato AAAA-MM-DDTHH:MM, calculadas a partir de "Agora" abaixo ("amanhã às 15h", "sexta que vem"). Sem duração dita, use 1 hora. Para mudar ou apagar, chame `calendar_list` antes para pegar o id. Só apague se o usuário pediu claramente para apagar/cancelar aquele evento."#;
 
 const JARVIS_SYSTEM_PROMPT_TAGS: &str = r#"
 
@@ -1803,7 +1803,8 @@ fn gemini_tool_declarations() -> serde_json::Value {
                         "all_day": { "type": "BOOLEAN" },
                         "location": { "type": "STRING" },
                         "description": { "type": "STRING" },
-                        "remind_minutes": { "type": "INTEGER", "description": "Notificar quantos minutos antes (0 = na hora). Passe SEMPRE que o usuário pedir lembrete, notificação, aviso ou alarme; sem minutos ditos use 10 (ou 0 se for um lembrete de um horário exato)." }
+                        "remind_minutes": { "type": "INTEGER", "description": "Quantos minutos ANTES do início avisar (0 = na hora do início). Passe SEMPRE que o usuário pedir lembrete, notificação, aviso ou alarme. \"Me lembra daqui a 30 minutos\" / \"às 15h\": start = esse horário e remind_minutes = 0 (NUNCA 30). Só use outro valor quando ele disser \"me avisa X minutos antes\"." },
+                        "alarm": { "type": "BOOLEAN", "description": "true quando o usuário pedir alarme ou despertador: no PC o aviso toca como despertador." }
                     },
                     "required": ["title", "start"]
                 }
@@ -1920,6 +1921,11 @@ async fn run_calendar_tool(name: &str, args: &serde_json::Value) -> Result<Strin
             Ok(cal::describe(&cal::events(from, days).await?, true))
         }
         "calendar_create" => {
+            // An alarm is marked in the description: the PC rings for it.
+            let alarm_desc = args["alarm"].as_bool().unwrap_or(false).then(|| match s("description") {
+                Some(d) => format!("{d}\n{}", crate::alerts::ALARM_MARK),
+                None => crate::alerts::ALARM_MARK.to_string(),
+            });
             let ev = cal::create(cal::NewEvent {
                 title: s("title").unwrap_or(""),
                 start: s("start").ok_or("Falta o início do evento.")?,
@@ -1927,10 +1933,11 @@ async fn run_calendar_tool(name: &str, args: &serde_json::Value) -> Result<Strin
                 minutes: args["duration_minutes"].as_i64(),
                 all_day: args["all_day"].as_bool().unwrap_or(false),
                 location: s("location"),
-                description: s("description"),
+                description: alarm_desc.as_deref().or(s("description")),
                 remind: args["remind_minutes"].as_i64(),
             })
             .await?;
+            crate::alerts::REFRESH.store(true, std::sync::atomic::Ordering::SeqCst);
             let note = match args["remind_minutes"].as_i64() {
                 Some(0) => " Notificação na hora.".to_string(),
                 Some(m) => format!(" Notificação {m} min antes."),
@@ -1938,7 +1945,11 @@ async fn run_calendar_tool(name: &str, args: &serde_json::Value) -> Result<Strin
             };
             Ok(format!("Evento criado: {}.{note}\n{}", ev.title, cal::describe(std::slice::from_ref(&ev), true)))
         }
-        "calendar_update" => cal::update(s("event_id").ok_or("Falta o id do evento.")?, s("title"), s("start"), s("end"), args["remind_minutes"].as_i64()).await,
+        "calendar_update" => {
+            let r = cal::update(s("event_id").ok_or("Falta o id do evento.")?, s("title"), s("start"), s("end"), args["remind_minutes"].as_i64()).await;
+            crate::alerts::REFRESH.store(true, std::sync::atomic::Ordering::SeqCst);
+            r
+        }
         "calendar_delete" => {
             cal::delete(s("event_id").ok_or("Falta o id do evento.")?).await?;
             Ok("Evento apagado.".into())
@@ -2152,8 +2163,14 @@ async fn execute_native_tool(
                     Ok(format!("Lembrete criado: {val} às {time}"))
                 }
                 "timer" => {
-                    let mins: u32 = val.parse().unwrap_or(5).max(1);
-                    let label = if extra.is_empty() { "Timer" } else { extra };
+                    // The minutes may come in either field ("36" / "Registro").
+                    let digits = |t: &str| t.chars().filter(|c| c.is_ascii_digit()).collect::<String>().parse::<u32>().ok();
+                    let (mins, label) = match (digits(val), digits(extra)) {
+                        (Some(m), _) => (m, if extra.is_empty() || digits(extra).is_some() { "Timer" } else { extra }),
+                        (None, Some(m)) => (m, if val.is_empty() { "Timer" } else { val }),
+                        _ => (5, if extra.is_empty() { "Timer" } else { extra }),
+                    };
+                    let mins = mins.clamp(1, 24 * 60);
                     let _ = app.emit_to(
                         crate::island::WINDOW_LABEL,
                         "jarvis-start-timer",

@@ -595,6 +595,7 @@ export async function startJarvisNotch(root: HTMLElement) {
   }
 
   function setExpanded(next: boolean, tab?: TabId) {
+    if (next) stopAlarm();
     if (tab) {
       activeTab = tab;
       if (ORGANIZE_TABS.has(tab)) organizeSubTab = tab as OrganizeSubTab;
@@ -705,6 +706,27 @@ export async function startJarvisNotch(root: HTMLElement) {
   }
 
   /** A short message in the compact notch (routines, "bom dia", hotkeys). */
+  /** A ringing alarm (calendar "alarme" / "despertador"). */
+  let alarmTimer: number | null = null;
+  function stopAlarm() {
+    if (alarmTimer != null) window.clearInterval(alarmTimer);
+    alarmTimer = null;
+  }
+  function startAlarm(say: string) {
+    stopAlarm();
+    const started = Date.now();
+    let rings = 0;
+    const ring = () => {
+      if (Date.now() - started > 30000) return stopAlarm();
+      Sound.chime(1);
+      window.setTimeout(() => Sound.chime(1), 350);
+      // Said once, after the first rings.
+      if (++rings === 2) void Voice.speak(say);
+    };
+    ring();
+    alarmTimer = window.setInterval(ring, 1600);
+  }
+
   function showToast(text: string, ms = 7000) {
     if (!text.trim()) return;
     toastReply = text;
@@ -717,6 +739,7 @@ export async function startJarvisNotch(root: HTMLElement) {
   }
 
   async function askJarvis(prompt: string, withScreen = false, stayCompact = false, viaVoice = false): Promise<string | undefined> {
+    stopAlarm();
     const q = prompt.trim();
     if (!q || sending) return;
     let answer: string | undefined;
@@ -2746,6 +2769,8 @@ export async function startJarvisNotch(root: HTMLElement) {
       status.textContent = "Senha salva";
     };
     const test = async () => {
+      // A password typed but not saved yet: saved first, then tested.
+      if (input.value.trim()) await save();
       status.textContent = "Testando…";
       status.textContent = await Bridge.obsTest().catch((e) => String(e).replace(/^Error:\s*/, ""));
     };
@@ -4155,7 +4180,13 @@ export async function startJarvisNotch(root: HTMLElement) {
   });
 
   // Reminders: Google Agenda notifications and Organizar → Lembretes.
-  await onEvent<{ title: string; body: string }>("jarvis-alert", (a) => {
+  await onEvent<{ title: string; body: string; alarm?: boolean }>("jarvis-alert", (a) => {
+    if (a.alarm) {
+      // An alarm clock: rings until the notch is opened or a command starts (30 s at most).
+      showToast(`⏰ ${a.title} — ${a.body} · abra o notch para parar`, 30000);
+      startAlarm(`Alarme: ${a.title}.`);
+      return;
+    }
     Sound.play("question");
     showToast(`🔔 ${a.title} — ${a.body}`, 25000);
     void Voice.speak(`Lembrete: ${a.title}, ${a.body}.`);
