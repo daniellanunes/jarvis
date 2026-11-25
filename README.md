@@ -67,6 +67,12 @@ Numa **ligação do WhatsApp**, o notch mostra quem é, o tempo e os botões (si
 
 <img src="docs/images/notch-call.png" width="640" alt="Ligação do WhatsApp no notch">
 
+**Temas da época** — no Natal, neve caindo, pinheiro e luzinhas sob o notch; na Festa Junina, bandeirinhas e fogueira; e assim no Ano Novo (fogos), Carnaval (confete), Páscoa, Halloween (morcegos) e no seu aniversário (balões), com contagem regressiva no Início:
+
+| Natal | Festa Junina |
+|---|---|
+| <img src="docs/images/panel-season-natal.png" alt="Tema de Natal"> | <img src="docs/images/panel-season-junina.png" alt="Tema de Festa Junina"> |
+
 <img src="docs/images/panel-glass.png" width="820" alt="Painel no visual Cristal">
 
 O notch pode ficar **sempre visível** ou **escondido** (aparece ao passar o mouse no meio da borda de cima ou quando você fala com o Jarvis), no monitor principal, num monitor específico ou **nos dois** (segue o mouse).
@@ -110,6 +116,7 @@ Clique no notch para abrir o painel.
 - **Conversa natural em português**, por voz (palavra de ativação “Jarvis”) ou texto.
 - **Cadastro da sua voz**: o “Jarvis” é reconhecido no próprio PC — na hora, sem internet e mesmo com barulho em volta.
 - **Conversa de verdade**: quando ele te faz uma pergunta, já fica ouvindo a resposta — não precisa dizer “Jarvis” de novo. E as respostas são faladas sem ler símbolos (nada de “asterisco”).
+- **Temas da época**: no Natal, Ano Novo, Carnaval, Páscoa, Festa Junina, Halloween e no seu aniversário, o notch ganha guirlanda de luzes, animações e enfeites, e o mascote veste a roupa da época — sozinho.
 - **Controla o OBS por voz**: “começa a gravar”, “encerra a live”, “troca para a cena Câmera”, “muta o microfone do OBS”.
 - **Sites já logados**: “abre o YouTube” abre no seu navegador de sempre; quando o Jarvis precisa mexer num site, usa o navegador dele, em que você entra nas contas uma vez (Ajustes → *Logins do navegador do Jarvis*).
 - **Ditado onde está o cursor**: “escreve: chego em 10 minutos” digita o texto no programa em que você estava.
@@ -303,6 +310,7 @@ Ajustes → **Notch**:
 |---|---|
 | **Visual** | **Grafite**, **Cristal**, **Meia-noite**, **Aurora** ou **Esmeralda**. Muda na hora, sem reiniciar. |
 | **Formato do notch** | **Notch** (preso à borda de cima), **Ilha** (cápsula flutuante) ou **Aba** (cantos quase retos). |
+| **Temas da época** | **Automático** (padrão): Natal (dezembro), Ano Novo, Carnaval, Páscoa, Festa Junina, Halloween e o seu aniversário (*Seu aniversário*: DD/MM) mudam o notch e o mascote sozinhos. Também dá para escolher uma época na mão, ou **Desligado**. |
 | **Quando o notch aparece** | *Sempre visível* ou *Escondido* (aparece ao passar o mouse na borda de cima ou ao falar com o Jarvis). |
 | **Em qual monitor** | Principal, um específico, ou *os dois* (vai para o monitor onde está o mouse). |
 | **Clima** | Digite sua cidade e **Salvar** — ele mostra o que vai aparecer. |

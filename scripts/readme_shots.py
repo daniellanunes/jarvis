@@ -113,6 +113,8 @@ def main() -> None:
         ("panel-pc", "open=pc&scroll=end"),
         ("panel-routines", "open=tasks&sub=Rotinas"),
         ("panel-contacts", "open=tasks&sub=Contatos"),
+        ("panel-season-natal", "open=home&season=natal&theme=glass"),
+        ("panel-season-junina", "open=home&season=junina&theme=glass"),
         ("settings-obs-backup", "open=settings&scroll=OBS Studio"),
         ("settings-ai", "open=settings&scroll=Trocar de IA automaticamente"),
         ("settings-notch", "open=settings&sub=Notch&scroll=Informações no notch"),
