@@ -637,6 +637,102 @@ pub fn focus_program(exe_stem: &str) -> bool {
     false
 }
 
+/// Types into whatever window is in front (routines, dictation).
+pub fn type_here(text: &str) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        win::type_text(text);
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = text;
+        Err("Disponível só no Windows.".into())
+    }
+}
+
+/// Presses keys / shortcuts in whatever window is in front.
+pub fn press_here(keys: &str) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        win::press(keys)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = keys;
+        Err("Disponível só no Windows.".into())
+    }
+}
+
+/// "Escreve: bom dia a todos", "digita aí 42": the words to type where the
+/// cursor is. None = not dictation (writing an e-mail, a note, a message is
+/// a job for the AI and its tools).
+pub fn dictation(said: &str) -> Option<String> {
+    let s = said.trim();
+    let f = fold(s);
+    let verbs = ["escreve", "escreva", "escrever", "digita", "digite", "digitar", "ditado"];
+    let mut start = None;
+    // Optional "Jarvis," in front.
+    let lead = if f.starts_with("jarvis") { f.find(|c: char| c == ' ').map(|i| i + 1).unwrap_or(f.len()) } else { 0 };
+    for v in verbs {
+        if f[lead..].starts_with(v) && f[lead + v.len()..].starts_with([' ', ':', ',']) {
+            start = Some(lead + v.len());
+            break;
+        }
+    }
+    let start = start?;
+    // Same length in chars for the folded and the said text (fold maps 1:1).
+    let mut rest: String = s.chars().skip(f[..start].chars().count()).collect();
+    let mut rf = fold(&rest);
+    for filler in [":", ",", " ai", " aí", " isso", " assim", " o seguinte", " pra mim", " para mim", ":", ","] {
+        let ff = fold(filler);
+        let t = rf.trim_start();
+        if t.starts_with(ff.trim_start()) {
+            let cut = rf.len() - t.len() + ff.trim_start().len();
+            rest = rest.chars().skip(rf[..cut].chars().count()).collect();
+            rf = fold(&rest);
+        }
+    }
+    let text = rest.trim().trim_start_matches([':', ',']).trim().to_string();
+    if text.is_empty() {
+        return None;
+    }
+    let t = fold(&text);
+    // "Escreve um e-mail para…", "escreve no WhatsApp…", "escreve uma nota…": not dictation.
+    const NOT: &[&str] = &[
+        "um email", "um e-mail", "uma mensagem", "um texto", "um resumo", "uma nota", "uma anotacao", "um lembrete", "um post", "uma resposta",
+        "no whatsapp", "no email", "no e-mail", "na nota", "nas notas", "no obsidian", "para ", "pra ", "sobre ",
+    ];
+    if NOT.iter().any(|n| t.starts_with(n)) {
+        return None;
+    }
+    Some(text)
+}
+
+/// Types the dictated text into the window the user was in (never into the
+/// Jarvis itself: then the program right behind it).
+pub fn dictate(text: &str) -> Result<String, String> {
+    #[cfg(windows)]
+    {
+        let fg = win::foreground();
+        let list = win::windows();
+        // win::windows() leaves the Jarvis out: the foreground one if it is
+        // listed, else the first program behind it.
+        let target = list.iter().find(|w| w.hwnd == fg).or_else(|| list.first()).cloned().ok_or("Não achei onde escrever.")?;
+        if target.hwnd != fg && !win::focus(target.hwnd) {
+            return Err(format!("O Windows não deixou voltar para \"{}\". Clique onde quer escrever e peça de novo.", target.title));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(150));
+        win::type_text(text);
+        Ok(format!("Escrevi em {}.", target.title))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = text;
+        Err("Disponível só no Windows.".into())
+    }
+}
+
 /// The open programs' windows, for "o que está aberto".
 pub fn list() -> String {
     #[cfg(windows)]
@@ -749,6 +845,22 @@ mod tests {
     }
 
     #[test]
+    fn dictation_is_told_apart() {
+        assert_eq!(dictation("Escreve: bom dia a todos.").as_deref(), Some("bom dia a todos."));
+        assert_eq!(dictation("Jarvis, escreve aí Reunião às 15h").as_deref(), Some("Reunião às 15h"));
+        assert_eq!(dictation("digita 42").as_deref(), Some("42"));
+        assert_eq!(dictation("Escreve, Olá, tudo bem?").as_deref(), Some("Olá, tudo bem?"));
+        assert_eq!(dictation("escreve isso: até amanhã").as_deref(), Some("até amanhã"));
+        // Jobs for the AI, not dictation.
+        assert_eq!(dictation("escreve um e-mail para a Bia"), None);
+        assert_eq!(dictation("escreve uma mensagem no WhatsApp"), None);
+        assert_eq!(dictation("escreve para mim um resumo"), None);
+        assert_eq!(dictation("escrever"), None);
+        assert_eq!(dictation("escrevendo um livro"), None);
+        assert_eq!(dictation("toca uma música"), None);
+    }
+
+    #[test]
     fn control_names_are_scored() {
         assert_eq!(name_score("Igual a", "igual a"), 4);
         assert!(name_score("Salvar como", "salvar") > name_score("Não salvar", "salvar"));
@@ -791,5 +903,10 @@ mod live {
         println!("{r}");
         assert!(r.contains("1.000") || r.contains("1,000") || r.contains("1000"));
         println!("click: {:?}", super::click("calculadora", "Limpar"));
+        // Dictation goes to the window in front.
+        println!("ditado: {:?}", super::dictate("7*6="));
+        let r = super::read("calculadora").unwrap();
+        println!("{}", r.lines().find(|l| l.contains("exibição")).unwrap_or("?"));
+        println!("{:?}", super::type_into("calc", "", "alt+f4", ""));
     }
 }

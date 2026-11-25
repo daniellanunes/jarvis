@@ -90,6 +90,11 @@ pub fn spawn(app: AppHandle) {
 
             for a in alerts {
                 crate::log::line(format!("alert: {} ({})", a.title, a.body));
+                // Full screen / OBS on air: told afterwards.
+                if let Some(why) = crate::dnd::quiet().await {
+                    crate::dnd::hold_alert(&format!("{}, {}", a.title, a.body), why);
+                    continue;
+                }
                 let _ = app.emit_to(crate::island::WINDOW_LABEL, "jarvis-alert", a);
             }
             if fired.len() > 2000 {

@@ -206,6 +206,8 @@ export interface Settings {
   jarvisNotchShape?: string;
   /** The sound when the Jarvis starts listening: "loud" | "soft" | "classic" | "off". */
   jarvisListenChime?: string;
+  /** Hold messages and reminders in full screen or while OBS records. */
+  jarvisAutoDnd?: boolean;
   /** "local": the enrolled "Jarvis" spotted on the PC; "cloud": transcribed sentences. */
   jarvisWakeEngine?: "local" | "cloud";
   /** Local wake word: 0.35 (easier) – 0.7 (stricter). */
@@ -268,6 +270,7 @@ export const DEFAULT_SETTINGS: Settings = {
   jarvisTtsRate: 8,
   jarvisNotchShape: "notch",
   jarvisListenChime: "loud",
+  jarvisAutoDnd: true,
   jarvisWakeEngine: "local",
   jarvisWakeThreshold: 0.45,
 };

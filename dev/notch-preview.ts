@@ -59,7 +59,15 @@ const data = {
   ],
   reminders: [{ id: "r1", title: "Reunião com cliente", time: "15:30", done: false }],
   habits: [{ id: "h1", name: "Beber água", streak: 4, doneToday: false }],
-  routines: [{ id: "rot_work", name: "Modo Dev", description: "Abre VS Code, Terminal e Spotify", targets: ["vscode", "terminal", "spotify"] }],
+  routines: [
+    { id: "rot_work", name: "Modo Dev", description: "Abre VS Code, Terminal e Spotify", targets: ["vscode", "terminal", "spotify"] },
+    { id: "rot_live", name: "Modo Live", description: "obs, esperar:5, obs:cena Câmera, obs:live, say:Boa live!", targets: ["obs", "esperar:5", "obs:cena Câmera", "obs:live", "say:Boa live!"] },
+  ],
+  contactNicknames: [
+    { nick: "Bia", contact: "Beatriz Souza" },
+    { nick: "Mãe", contact: "Mãe ❤️" },
+  ],
+  whatsappWatch: ["Beatriz Souza"],
 };
 
 // Calendar: a few events around today, in local time.

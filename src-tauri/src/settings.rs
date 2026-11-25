@@ -136,6 +136,8 @@ pub struct Settings {
     pub jarvis_notch_shape: String,
     /// The sound when the Jarvis starts listening: "loud" | "soft" | "classic" | "off".
     pub jarvis_listen_chime: String,
+    /// Keep quiet (hold messages and reminders) in full screen or while OBS records.
+    pub jarvis_auto_dnd: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -223,6 +225,7 @@ impl Default for Settings {
             jarvis_tts_rate: 8,
             jarvis_notch_shape: "notch".into(),
             jarvis_listen_chime: "loud".into(),
+            jarvis_auto_dnd: true,
         }
     }
 }
@@ -532,7 +535,8 @@ mod tests {
   "jarvisTtsVoice": "pt-BR-FranciscaNeural",
   "jarvisTtsRate": -5,
   "jarvisNotchShape": "island",
-  "jarvisListenChime": "soft"
+  "jarvisListenChime": "soft",
+  "jarvisAutoDnd": false
 }"##;
 
     fn custom() -> Value {
@@ -969,6 +973,7 @@ mod tests {
                 "jarvisTtsRate",
                 "jarvisNotchShape",
                 "jarvisListenChime",
+                "jarvisAutoDnd",
             ]
         );
         let _ = std::fs::remove_dir_all(&dir);

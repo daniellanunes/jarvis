@@ -878,6 +878,136 @@ pub fn add_reminder_internal(title: &str, time: &str) {
     });
 }
 
+// ── Backup of the configuration (Ajustes → Sobre) ────────────────────────────
+
+/// Settings that only make sense on this PC (folders, devices, programs).
+const NOT_EXPORTED: &[&str] = &[
+    "jarvisObsidianVault",
+    "jarvisProjectsDir",
+    "jarvisMicDevice",
+    "jarvisMicName",
+    "jarvisCodeEditor",
+    "jarvisInstallDefaultsApplied",
+];
+
+/// The Jarvis settings worth carrying to another PC (never a password or key:
+/// those live in the Windows vault, not in settings).
+fn portable_settings(s: &crate::settings::Settings) -> serde_json::Map<String, serde_json::Value> {
+    let v = serde_json::to_value(s).unwrap_or_default();
+    v.as_object()
+        .map(|o| o.iter().filter(|(k, _)| k.starts_with("jarvis") && !NOT_EXPORTED.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect())
+        .unwrap_or_default()
+}
+
+/// The backup file's content.
+pub fn export_json(data: &JarvisData, settings: &crate::settings::Settings) -> serde_json::Value {
+    serde_json::json!({
+        "app": "Jarvis",
+        "format": 1,
+        "exported": chrono::Local::now().format("%Y-%m-%d %H:%M").to_string(),
+        "settings": portable_settings(settings),
+        "routines": data.routines,
+        "contactNicknames": data.contact_nicknames,
+        "whatsappWatch": data.whatsapp_watch,
+    })
+}
+
+/// Merges a backup into `data`: routines and nicknames by name (the backup's
+/// wins), watched contacts added. Returns what changed, for the message.
+pub fn merge_backup(data: &mut JarvisData, backup: &serde_json::Value) -> Result<String, String> {
+    if backup["app"].as_str() != Some("Jarvis") {
+        return Err("Esse arquivo não é um backup do Jarvis.".into());
+    }
+    let routines: Vec<RoutineItem> = serde_json::from_value(backup["routines"].clone()).unwrap_or_default();
+    let nicks: Vec<ContactNickname> = serde_json::from_value(backup["contactNicknames"].clone()).unwrap_or_default();
+    let watch: Vec<String> = serde_json::from_value(backup["whatsappWatch"].clone()).unwrap_or_default();
+    let fold = crate::file_search::fold;
+    for r in &routines {
+        data.routines.retain(|x| fold(&x.name) != fold(&r.name));
+        let mut r = r.clone();
+        if r.id.is_empty() {
+            r.id = unique_id("rot");
+        }
+        data.routines.push(r);
+    }
+    for n in &nicks {
+        data.contact_nicknames.retain(|x| fold(&x.nick) != fold(&n.nick));
+        data.contact_nicknames.push(n.clone());
+    }
+    let mut added = 0;
+    for w in &watch {
+        if !data.whatsapp_watch.iter().any(|x| fold(x) == fold(w)) {
+            data.whatsapp_watch.push(w.clone());
+            added += 1;
+        }
+    }
+    let settings = backup["settings"].as_object().map(|o| o.len()).unwrap_or(0);
+    Ok(format!(
+        "Importado: {} rotina(s), {} apelido(s), {} contato(s) com aviso e {} ajuste(s).",
+        routines.len(),
+        nicks.len(),
+        added,
+        settings
+    ))
+}
+
+/// Writes the backup to Documentos and returns where.
+#[tauri::command]
+pub fn jarvis_config_export() -> Result<String, String> {
+    let json = export_json(&load_data(), &crate::settings::load());
+    let docs = std::path::PathBuf::from(std::env::var("USERPROFILE").unwrap_or_default()).join("Documents");
+    let dir = if docs.is_dir() { docs } else { std::env::temp_dir() };
+    let path = dir.join(format!("Jarvis - configurações {}.json", chrono::Local::now().format("%Y-%m-%d")));
+    std::fs::write(&path, serde_json::to_string_pretty(&json).unwrap_or_default()).map_err(|e| format!("Não consegui salvar: {e}"))?;
+    crate::log::line(format!("backup das configurações: {}", path.display()));
+    Ok(path.to_string_lossy().to_string())
+}
+
+/// Reads a backup: merges routines / nicknames / watched contacts here and
+/// returns { message, settings } — the settings are applied by the notch.
+#[tauri::command]
+pub fn jarvis_config_import(text: String) -> Result<serde_json::Value, String> {
+    let backup: serde_json::Value = serde_json::from_str(&text).map_err(|_| "Arquivo inválido (não é JSON).".to_string())?;
+    let message = update_data(|d| merge_backup(d, &backup))??;
+    let mut settings = backup["settings"].as_object().cloned().unwrap_or_default();
+    settings.retain(|k, _| k.starts_with("jarvis") && !NOT_EXPORTED.contains(&k.as_str()));
+    crate::log::line(format!("backup importado: {message}"));
+    Ok(serde_json::json!({ "message": message, "settings": settings }))
+}
+
+#[cfg(test)]
+mod backup_tests {
+    use super::*;
+
+    #[test]
+    fn a_backup_goes_out_and_comes_back() {
+        let mut here = JarvisData::default();
+        here.routines = vec![RoutineItem { id: "r1".into(), name: "Modo Live".into(), targets: vec!["obs".into(), "obs:live".into()], ..Default::default() }];
+        here.contact_nicknames = vec![ContactNickname { nick: "Bia".into(), contact: "Beatriz Souza".into() }];
+        here.whatsapp_watch = vec!["Beatriz Souza".into()];
+        let mut s = crate::settings::Settings::default();
+        s.jarvis_theme = "aurora".into();
+        s.jarvis_projects_dir = r"D:\Meus".into();
+        let out = export_json(&here, &s);
+        assert_eq!(out["settings"]["jarvisTheme"], "aurora");
+        // Folders and devices of this PC stay out.
+        assert!(out["settings"].get("jarvisProjectsDir").is_none());
+        assert!(out["settings"].as_object().unwrap().keys().all(|k| k.starts_with("jarvis")));
+
+        // Another PC: one routine with the same name, another nickname.
+        let mut there = JarvisData::default();
+        there.routines = vec![RoutineItem { id: "x".into(), name: "modo live".into(), targets: vec!["chrome".into()], ..Default::default() }];
+        there.contact_nicknames = vec![ContactNickname { nick: "Zé".into(), contact: "José".into() }];
+        let msg = merge_backup(&mut there, &out).unwrap();
+        assert!(msg.contains("1 rotina"));
+        assert_eq!(there.routines.iter().filter(|r| crate::file_search::fold(&r.name) == "modo live").count(), 1);
+        assert_eq!(there.routines.iter().find(|r| r.name == "Modo Live").unwrap().targets, vec!["obs".to_string(), "obs:live".to_string()]);
+        assert_eq!(there.contact_nicknames.len(), 2);
+        assert_eq!(there.whatsapp_watch, vec!["Beatriz Souza".to_string()]);
+        assert!(merge_backup(&mut there, &serde_json::json!({ "app": "Outro" })).is_err());
+    }
+}
+
 /// Saves (or changes) a contact nickname.
 pub fn set_nickname(nick: &str, contact: &str) -> Result<(), String> {
     let (nick, contact) = (nick.trim(), contact.trim());

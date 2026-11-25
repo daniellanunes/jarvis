@@ -224,7 +224,7 @@ mod win {
     use windows::Win32::System::Threading::{
         GetSystemTimes, OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
     };
-    use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowRect, GetWindowThreadProcessId};
+    use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowLongW, GetWindowRect, GetWindowThreadProcessId, GWL_STYLE, WS_CAPTION};
 
     const GB: f32 = 1024.0 * 1024.0 * 1024.0;
 
@@ -387,6 +387,28 @@ mod win {
         }
     }
 
+    /// The program in true full screen in front (a game, a video): its file
+    /// name. A maximized window keeps its title bar, so it does not count.
+    pub fn fullscreen_app() -> Option<String> {
+        let (pid, full, _) = foreground()?;
+        if !full {
+            return None;
+        }
+        unsafe {
+            let style = GetWindowLongW(GetForegroundWindow(), GWL_STYLE) as u32;
+            if style & WS_CAPTION.0 == WS_CAPTION.0 {
+                return None;
+            }
+        }
+        let exe = exe_name(pid);
+        const NOT: &[&str] = &[
+            "explorer", "openjarvis", "msedgewebview2", "dwm", "searchhost", "shellexperiencehost", "startmenuexperiencehost",
+            "textinputhost", "lockapp", "applicationframehost",
+        ];
+        let e = exe.to_ascii_lowercase();
+        (!e.is_empty() && !NOT.iter().any(|n| e == *n)).then_some(exe)
+    }
+
     /// CPU and GPU model names, read once (WMI through PowerShell, off the UI).
     fn hardware_names() -> (String, String) {
         use std::os::windows::process::CommandExt;
@@ -538,6 +560,18 @@ foreach($ns in 'root/LibreHardwareMonitor','root/OpenHardwareMonitor'){
             }
             m
         }
+    }
+}
+
+/// The program in full screen in front, if any (for "não perturbe").
+pub fn fullscreen_app() -> Option<String> {
+    #[cfg(windows)]
+    {
+        win::fullscreen_app()
+    }
+    #[cfg(not(windows))]
+    {
+        None
     }
 }
 

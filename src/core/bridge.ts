@@ -371,6 +371,11 @@ export const Bridge = {
   mediaControl: (action: string) => callOrThrow<string>("media_control", { action }),
   /** The notch player's buttons, on the session of the track shown. */
   playerControl: (action: string, title?: string) => callOrThrow<string>("player_control", { action, title: title ?? null }),
+  /** Ajustes: whether OBS answers on its WebSocket server. */
+  obsTest: () => callOrThrow<string>("obs_test"),
+  /** Ajustes → Sobre: the configuration backup (a file in Documentos). */
+  configExport: () => callOrThrow<string>("jarvis_config_export"),
+  configImport: (text: string) => callOrThrow<{ message: string; settings: Record<string, unknown> }>("jarvis_config_import", { text }),
   selectedText: () => call<string | null>("jarvis_selected_text"),
   copyText: (text: string) => call<void>("jarvis_copy_text", { text }),
   // ── Files, notes, routines, briefing ─────────────────────────────
