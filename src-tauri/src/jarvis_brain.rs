@@ -191,7 +191,7 @@ Regras de ouro de comportamento e precisão:
    - Para ajustar volume exato (ex: 50%), chame `set_volume(percent=50)` (NUNCA PowerShell).
    - Para tocar música/álbum/artista/playlist específica no Spotify, chame `spotify_play` (NUNCA `media_control(play)` sozinho, pois `media_control` só retoma a faixa antiga).
    - Para tarefas de desenvolvimento em projetos (código, build, API, design, memória Obsidian), delegue com `delegate_openbot`.
-5. Navegador: para QUALQUER site use `browser_open` (nunca `open_target`). Para interagir, use os números [n] do snapshot mais recente com `browser_click`, `browser_type`, `browser_select`, `browser_press`, `browser_scroll`. Cada ação devolve um snapshot novo: CONFIRME nele que a ação teve efeito (página mudou, campo com o valor, item marcado/selecionado) antes de dizer que fez. Se não mudou, tente outro elemento ou outra abordagem; se não conseguir, diga claramente o que faltou. Nunca diga "selecionei"/"cliquei" sem essa confirmação.
+5. Navegador: só ABRIR um site para o usuário olhar ("abre o YouTube", "abre o Gmail", "abre o site X") → `open_target` com a URL ou o nome: abre no navegador do usuário, onde ele já está logado. Quando VOCÊ precisa ver, ler, clicar, digitar ou buscar dentro do site → `browser_open` (o navegador do Jarvis; o usuário faz login nele uma vez em Ajustes e fica salvo). Para interagir, use os números [n] do snapshot mais recente com `browser_click`, `browser_type`, `browser_select`, `browser_press`, `browser_scroll`. Cada ação devolve um snapshot novo: CONFIRME nele que a ação teve efeito (página mudou, campo com o valor, item marcado/selecionado) antes de dizer que fez. Se não mudou, tente outro elemento ou outra abordagem; se não conseguir, diga claramente o que faltou. Nunca diga "selecionei"/"cliquei" sem essa confirmação.
 6. Seja rápido e curto: chame as ferramentas direto, sem explicar o plano antes. A resposta final tem 1 ou 2 frases.
 7. Agenda (Google Agenda): "me lembra / me avisa / notifica" vira evento com `remind_minutes` (o Google notifica no celular e o Jarvis avisa no PC). Use `calendar_list`, `calendar_create`, `calendar_update`, `calendar_delete`. Datas/horas sempre no horário LOCAL no formato AAAA-MM-DDTHH:MM, calculadas a partir de "Agora" abaixo ("amanhã às 15h", "sexta que vem"). Sem duração dita, use 1 hora. Para mudar ou apagar, chame `calendar_list` antes para pegar o id. Só apague se o usuário pediu claramente para apagar/cancelar aquele evento."#;
 
@@ -1703,7 +1703,7 @@ fn gemini_tool_declarations() -> serde_json::Value {
             },
             {
                 "name": "browser_open",
-                "description": "Abre um site (ou busca no Google se não for URL) no navegador do Jarvis, que você controla. Retorna o snapshot da página: elementos numerados [n] que dá para clicar/digitar e o texto visível. Use SEMPRE este para sites (não open_target).",
+                "description": "Abre um site (ou busca no Google se não for URL) no navegador do Jarvis, que você controla. Retorna o snapshot da página: elementos numerados [n] que dá para clicar/digitar e o texto visível. Use quando precisar ler a página ou agir nela; para só abrir um site para o usuário ver, use open_target (navegador dele, já logado).",
                 "parameters": {
                     "type": "OBJECT",
                     "properties": {

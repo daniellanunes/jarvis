@@ -86,6 +86,8 @@ fn launch(start_url: Option<&str>, minimized: bool) -> Result<(), String> {
         .args(["--no-first-run", "--no-default-browser-check"])
         .arg(if minimized { "--start-minimized" } else { "--start-maximized" });
     cmd.arg(start_url.unwrap_or("about:blank"));
+    // Its own process, not tied to the Jarvis' console handles.
+    cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
     cmd.spawn().map_err(|e| format!("Não consegui abrir o navegador do Jarvis: {e}"))?;
     Ok(())
 }
@@ -348,6 +350,20 @@ pub async fn open(url: &str, new_tab_flag: bool) -> Result<String, String> {
     snapshot_with(&mut cdp).await
 }
 
+/// Ajustes → "Entrar nos sites": the Jarvis browser opened on a sign-in page,
+/// in front, for the user to log in once (the profile keeps it).
+#[tauri::command]
+pub async fn browser_login_open(url: Option<String>) -> Result<String, String> {
+    let target = normalize_url(url.as_deref().filter(|u| !u.trim().is_empty()).unwrap_or("https://accounts.google.com"));
+    let started = ensure_browser(Some(&target)).await?;
+    if !started {
+        new_tab(&target).await?;
+    }
+    let mut cdp = Cdp::open().await?;
+    let _ = cdp.send("Page.bringToFront", json!({})).await;
+    Ok("Navegador do Jarvis aberto: entre nas suas contas; o login fica salvo.".into())
+}
+
 pub async fn snapshot() -> Result<String, String> {
     ensure_browser(None).await?;
     let mut cdp = Cdp::open().await?;
@@ -549,3 +565,4 @@ mod tests {
         assert!(locate_js(Some(7), None).contains("data-jv=\"7\""));
     }
 }
+

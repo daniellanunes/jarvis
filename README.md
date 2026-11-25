@@ -111,6 +111,7 @@ Clique no notch para abrir o painel.
 - **Cadastro da sua voz**: o “Jarvis” é reconhecido no próprio PC — na hora, sem internet e mesmo com barulho em volta.
 - **Conversa de verdade**: quando ele te faz uma pergunta, já fica ouvindo a resposta — não precisa dizer “Jarvis” de novo. E as respostas são faladas sem ler símbolos (nada de “asterisco”).
 - **Controla o OBS por voz**: “começa a gravar”, “encerra a live”, “troca para a cena Câmera”, “muta o microfone do OBS”.
+- **Sites já logados**: “abre o YouTube” abre no seu navegador de sempre; quando o Jarvis precisa mexer num site, usa o navegador dele, em que você entra nas contas uma vez (Ajustes → *Logins do navegador do Jarvis*).
 - **Ditado onde está o cursor**: “escreve: chego em 10 minutos” digita o texto no programa em que você estava.
 - **Não perturbe automático**: em jogo/tela cheia ou com o OBS gravando, ele guarda os avisos e conta tudo quando acabar.
 - **Usa os programas do PC**: abre a Calculadora e faz a conta, escreve no Bloco de Notas, clica em botões pelo nome, usa atalhos e lê o que aparece na janela; também lê e edita arquivos de texto (sempre guardando a versão anterior).
@@ -358,6 +359,8 @@ O Jarvis fala com o OBS pelo servidor WebSocket que já vem no OBS (versão 28 o
 
 <img src="docs/images/settings-obs-backup.png" width="720" alt="OBS no Jarvis">
 
+**Logins do navegador do Jarvis** (logo abaixo do OBS): quando o Jarvis precisa buscar, clicar ou preencher num site, ele usa um navegador próprio — o Chrome não deixa controlar o seu perfil principal. Clique em **Google / YouTube**, **Instagram**… e entre nas suas contas uma vez: o login fica salvo. Para só abrir um site (“abre o YouTube”), ele usa o seu navegador de sempre, já logado.
+
 Pronto: “começa a gravar”, “pausa a gravação”, “para de gravar”, “começa a live”, “encerra a live”, “troca para a cena Câmera”, “muta o microfone do OBS”, “salva o replay”, “como está o OBS?”. Sem a palavra “OBS”, os comandos de gravar e de live só valem com o OBS aberto.
 
 ---
@@ -467,6 +470,7 @@ Ajustes → **IA & Voz** → **Sobre** → **Backup das configurações**: **Exp
 | Não ouço quando ele começa a escutar | **Voz do Jarvis → Som quando ele começa a ouvir → Alto**. |
 | WhatsApp: ligação fica em “Ligando…” | É do WhatsApp Web (as ligações pelo navegador ainda são instáveis e, depois de muitas tentativas seguidas, o WhatsApp segura por algumas horas). Tente mais tarde ou ligue pelo celular. |
 | OBS: “Não consegui falar com o OBS” | Abra o OBS e ative **Ferramentas → Configurações do servidor WebSocket → Ativar** (porta 4455). Se ele pedir senha, cole em Ajustes → OBS Studio. |
+| Num site, o Jarvis aparece deslogado | Ajustes → IA & Voz → **Logins do navegador do Jarvis** → entre na conta uma vez (fica salvo). |
 | O ditado escreveu no lugar errado | Ele escreve na janela em que você estava antes de falar. Clique onde quer escrever e fale de novo. |
 | Ele não avisou uma mensagem / lembrete | Com um jogo ou vídeo em tela cheia (ou o OBS gravando), o **Não perturbe automático** guarda os avisos e conta quando acaba. Dá para desligar em Ajustes → Notch. |
 | WhatsApp: “não achei o contato” | Diga o nome como está salvo no celular (ou o número com DDD). Ele mostra os nomes parecidos que encontrou. |
