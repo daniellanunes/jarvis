@@ -643,6 +643,18 @@ async fn jarvis_ask_inner(
     if let Some(text) = crate::whatsapp::quick_call_control(&prompt).await {
         return Ok(JarvisReply { text, provider_used: "WhatsApp".to_string(), actions: Vec::new(), pending_actions: Vec::new() });
     }
+    // "Escreve: …" — typed where the cursor is, at once.
+    if let Some(words) = crate::pc_control::dictation(&prompt) {
+        let text = tauri::async_runtime::spawn_blocking(move || crate::pc_control::dictate(&words))
+            .await
+            .unwrap_or_else(|e| Err(e.to_string()))
+            .unwrap_or_else(|e| e);
+        return Ok(JarvisReply { text, provider_used: "Ditado".to_string(), actions: Vec::new(), pending_actions: Vec::new() });
+    }
+    // "Começa a gravar", "troca para a cena X": OBS, at once.
+    if let Some(text) = crate::obs::quick(&prompt).await {
+        return Ok(JarvisReply { text, provider_used: "OBS".to_string(), actions: Vec::new(), pending_actions: Vec::new() });
+    }
     // "Liga para X (no WhatsApp)": asked back at once, no AI round trip.
     if let Some(text) = crate::whatsapp::quick_call(&prompt) {
         return Ok(JarvisReply { text, provider_used: "WhatsApp".to_string(), actions: Vec::new(), pending_actions: Vec::new() });
@@ -1669,7 +1681,7 @@ fn gemini_tool_declarations() -> serde_json::Value {
                         },
                         "value": { "type": "STRING", "description": "Título, fato, nome da rotina, minutos ou nome da aba." },
                         "extra": { "type": "STRING", "description": "Horário HH:MM, descrição da rotina, categoria de memória ou nome do timer." },
-                        "extra2": { "type": "STRING", "description": "Passos da rotina separados por vírgula (nomes dos programas como o usuário falou: 'obs, antigravity, obsidian'; também 'close:chrome', 'spotify:lofi', 'volume:30', 'say:texto') ou notas da memória." }
+                        "extra2": { "type": "STRING", "description": "Passos da rotina separados por vírgula (nomes dos programas como o usuário falou: 'obs, antigravity, obsidian'; também 'close:chrome', 'spotify:lofi', 'volume:30', 'say:texto', 'esperar:5', 'teclas:ctrl+shift+n', 'digitar:texto', 'obs:gravar', 'obs:cena Câmera', 'obs:live', 'projeto:nome', 'whatsapp:Bia: texto') ou notas da memória." }
                     },
                     "required": ["kind", "value"]
                 }

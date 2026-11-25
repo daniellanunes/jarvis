@@ -34,6 +34,7 @@ acha arquivos, anota no Obsidian, mostra clima, uso do PC e FPS dos jogos — tu
   - [6. O notch: clima, uso do PC, FPS e mais](#6-o-notch-clima-uso-do-pc-fps-e-mais)
   - [7. WhatsApp](#7-whatsapp)
   - [8. OpenBot (opcional)](#8-openbot-opcional)
+  - [9. OBS Studio (opcional)](#9-obs-studio-opcional)
 - [Usando no dia a dia](#usando-no-dia-a-dia)
 - [Privacidade e segurança](#privacidade-e-segurança)
 - [Solução de problemas](#solução-de-problemas)
@@ -109,8 +110,12 @@ Clique no notch para abrir o painel.
 - **Conversa natural em português**, por voz (palavra de ativação “Jarvis”) ou texto.
 - **Cadastro da sua voz**: o “Jarvis” é reconhecido no próprio PC — na hora, sem internet e mesmo com barulho em volta.
 - **Conversa de verdade**: quando ele te faz uma pergunta, já fica ouvindo a resposta — não precisa dizer “Jarvis” de novo. E as respostas são faladas sem ler símbolos (nada de “asterisco”).
+- **Controla o OBS por voz**: “começa a gravar”, “encerra a live”, “troca para a cena Câmera”, “muta o microfone do OBS”.
+- **Ditado onde está o cursor**: “escreve: chego em 10 minutos” digita o texto no programa em que você estava.
+- **Não perturbe automático**: em jogo/tela cheia ou com o OBS gravando, ele guarda os avisos e conta tudo quando acabar.
 - **Usa os programas do PC**: abre a Calculadora e faz a conta, escreve no Bloco de Notas, clica em botões pelo nome, usa atalhos e lê o que aparece na janela; também lê e edita arquivos de texto (sempre guardando a versão anterior).
 - **Voz natural em qualquer PC**: vozes neurais da Microsoft (Antonio, Francisca, Thalita e outras), escolhidas em Ajustes — sem instalar nada. Um **som alto** avisa quando ele começa a te ouvir, para quando você está longe do PC.
+- **Contatos do seu jeito**: apelidos (“Bia” → Beatriz Souza) e aviso quando um contato escolhido manda mensagem — ele pergunta se pode ler e o que responder.
 - **WhatsApp dentro do notch**, com o jeito do WhatsApp: conversas com fotos, busca e filtros, mensagens com áudio (▶) e imagens, gravação de áudio, mensagens antigas e ligações. Por voz ele manda, lê, diz o que chegou e liga — só quando você pede, confirmando antes.
 - **Executa de verdade**: toca a música exata, abre sites e clica neles num navegador próprio, controla volume e mídia, cria eventos, procura arquivos, anota no Obsidian…
 - **Atalhos instantâneos** para pedidos simples (“pausa”, “volume 30”, “bom dia”, “muda pro fone”) — respondem na hora, sem esperar a IA.
@@ -305,6 +310,7 @@ Ajustes → **Notch**:
 | **Jogo em tela cheia → outro monitor** | Jogos em *tela cheia exclusiva* cobrem qualquer janela. Com dois monitores, o notch (com o FPS) vai para o outro durante o jogo. Dica: com **“Janela sem bordas”** no jogo, o notch fica por cima no mesmo monitor. |
 | **Internet** | Ping ao lado do relógio; vermelho quando cai. |
 | **Modo jogo** | Com jogo aberto: só o FPS, sem sons; resumo da sessão no fim. |
+| **Não perturbe automático** | Ligado por padrão. Em **tela cheia** (jogo, vídeo) ou com o **OBS gravando/ao vivo**, os avisos do WhatsApp e os lembretes ficam guardados; quando acaba, ele conta tudo de uma vez (*“Enquanto você jogava: a Bia mandou 3 mensagens. Quer que eu leia?”*). |
 | **Bom dia** | No primeiro início do dia, o Jarvis fala o clima, seus compromissos e tarefas. |
 
 **Temperatura de CPU/GPU:** o Windows não tem um jeito próprio de ler esses sensores. Abra o [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) (deixe rodando) e a temperatura aparece ao passar o mouse nos círculos.
@@ -323,6 +329,15 @@ Na conversa: **▶** toca um áudio, as **imagens** aparecem sozinhas (**Baixar*
 
 Por voz: “manda no WhatsApp pra mim: comprar pão”, “lê a conversa com a Ana”, “tenho mensagem nova no WhatsApp?”, “liga para a Carolina”. O Jarvis **só lê quando você pede**. Antes de enviar ou ligar, ele confirma (*“Posso enviar?”*, *“Posso ligar?”*): responda **“sim”**, **“não”** ou peça uma correção. O que você mesmo digita na aba vai direto.
 
+Durante uma ligação, por voz: **“desliga a chamada”**, **“atende”**, **“recusa”**, **“muta o microfone”**.
+
+**Apelidos e avisos** — Organizar → **Contatos**:
+
+<img src="docs/images/panel-contacts.png" width="720" alt="Apelidos e avisos de contatos">
+
+- **Apelidos**: “Bia” → *Beatriz Souza*. Depois é só falar “manda pra Bia…”, “liga pra Bia”. Também por voz: *“quando eu falar Bia é a Beatriz Souza”*.
+- **Avisar quando mandarem mensagem**: quando um desses contatos escreve, o Jarvis diz *“Beatriz Souza te mandou uma mensagem. Quer que eu leia?”*. **“Sim”** → ele lê e pergunta *“Quer responder?”* → você dita a resposta → ele confirma (*“Posso enviar?”*) antes de mandar. Por voz: *“me avisa quando a Bia mandar mensagem”*.
+
 > **Ligações:** usam as chamadas do WhatsApp Web, que ainda estão chegando aos poucos e às vezes falham do lado do WhatsApp (ficam em “Ligando…”). Ligação recebida aparece no notch com **Atender / Recusar**.
 
 > A sessão fica só no seu PC (`%LOCALAPPDATA%\OpenJarvis\whatsapp-web`). Para desconectar, remova o aparelho em *Aparelhos conectados* no celular.
@@ -333,6 +348,17 @@ Se você usa um OpenBot próprio, o Jarvis pode delegar tarefas de programação
 
 1. Ajustes → **IA & Voz** → **Pastas e integrações** → **Webhook do OpenBot**: a URL `https://` do seu webhook.
 2. **Segredo do webhook**: o segredo HMAC (fica no cofre do Windows).
+
+### 9. OBS Studio (opcional)
+
+O Jarvis fala com o OBS pelo servidor WebSocket que já vem no OBS (versão 28 ou mais nova):
+
+1. No OBS: **Ferramentas → Configurações do servidor WebSocket** → marque **Ativar servidor WebSocket** (porta **4455**) → **Mostrar informações de conexão** → copie a **senha**.
+2. No Jarvis: Ajustes → **IA & Voz** → **Pastas e integrações** → **OBS Studio** → cole a senha → **Salvar** → **Testar**.
+
+<img src="docs/images/settings-obs-backup.png" width="720" alt="OBS no Jarvis">
+
+Pronto: “começa a gravar”, “pausa a gravação”, “para de gravar”, “começa a live”, “encerra a live”, “troca para a cena Câmera”, “muta o microfone do OBS”, “salva o replay”, “como está o OBS?”. Sem a palavra “OBS”, os comandos de gravar e de live só valem com o OBS aberto.
 
 ---
 
@@ -358,6 +384,11 @@ Diga **“Jarvis”** e o pedido, clique no notch e digite, ou use **Ctrl+Alt+Es
 | “Minha internet tá lenta?” | Ping e teste de velocidade |
 | “Manda no WhatsApp pra Ana que vou atrasar” / “manda pra mim: comprar pão” | Ele confirma a pessoa e o texto e pergunta se pode enviar |
 | “Liga para a Carolina no WhatsApp” / “faz uma chamada de vídeo com o Pedro” | Ele pergunta se pode ligar; ao “sim”, a ligação aparece no notch |
+| “Desliga a chamada” / “atende” / “recusa” / “muta o microfone” | Na ligação do WhatsApp em andamento |
+| “Quando eu falar Bia é a Beatriz Souza” / “me avisa quando a Bia mandar mensagem” | Apelido e aviso de mensagens (Organizar → Contatos) |
+| “Começa a gravar” / “encerra a live” / “troca para a cena Câmera” | OBS Studio (passo 9) |
+| “Escreve: chego em 10 minutos” / “digita 42” | Digita no programa em que você estava |
+| “Quando eu falar modo live, abre o OBS, espera 5 segundos e começa a live” | Cria uma rotina; depois é só falar “modo live” |
 | “Calcula 347 vezes 12 na calculadora” | Abre a Calculadora, digita a conta e fala o resultado |
 | “Abre o bloco de notas e escreve: lista de compras” / “salva com ctrl+s” | Digita e usa atalhos no programa aberto |
 | “No arquivo notas.txt troca leite por café” | Edita o arquivo e guarda a versão anterior em `%LOCALAPPDATA%\OpenJarvis\backups` |
@@ -378,10 +409,26 @@ Diga **“Jarvis”** e o pedido, clique no notch e digite, ou use **Ctrl+Alt+Es
 
 Organizar → **Rotinas**. Cada rotina tem **passos** separados por vírgula e, se quiser, um **gatilho**:
 
-- **Passos**: `spotify` (abre), `close:chrome` (fecha), `spotify:lofi focus` (toca), `volume:30`, `saida:fone`, `mic:off`, `say:Bom jogo!`, ou qualquer app/site/pasta.
-- **Gatilho**: *Ao abrir um app* (ex.: `valorant`) ou *Num horário* (ex.: `18:00`).
+- **Passos**:
 
-Exemplo — **Modo jogo**: gatilho `app:valorant`, passos `close:chrome, saida:fone, volume:40, say:Bom jogo!`.
+  | Passo | O que faz |
+  |---|---|
+  | `obs`, `antigravity`, `https://…`, uma pasta | Abre (se já estiver aberto, só traz para a frente) |
+  | `esperar:5` | Espera 5 segundos (um programa que demora a abrir) |
+  | `teclas:ctrl+shift+n` / `digitar:texto` | Atalho / texto no último programa que a rotina abriu |
+  | `obs:gravar`, `obs:parar`, `obs:live`, `obs:parar live`, `obs:cena Câmera`, `obs:mutar` | Controla o OBS |
+  | `projeto:aluga` | Abre o projeto (da pasta de projetos) no seu editor |
+  | `whatsapp:Bia: chego já` | Pergunta *“Posso enviar?”* antes de mandar |
+  | `spotify:lofi focus`, `volume:30`, `saida:fone`, `mic:off`, `close:chrome`, `say:Bom jogo!` | Toca, volume, saída de som, microfone, fecha, fala |
+
+- **Gatilho**: *Ao abrir um app* (ex.: `valorant`) ou *Num horário* (ex.: `18:00`).
+- **Por voz**: *“quando eu falar modo trabalho, abre o OBS, o Antigravity e o Obsidian”* cria a rotina (ele avisa se não achar algum programa). Depois, falar **“modo trabalho”** roda na hora.
+
+Exemplos — **Modo jogo**: gatilho `app:valorant`, passos `close:chrome, saida:fone, volume:40, say:Bom jogo!`. **Modo live**: `obs, esperar:5, obs:cena Câmera, obs:live, whatsapp:Bia: tô ao vivo!`.
+
+### Backup das configurações
+
+Ajustes → **IA & Voz** → **Sobre** → **Backup das configurações**: **Exportar** salva rotinas, apelidos, contatos com aviso, voz, visual e preferências num arquivo em **Documentos**; **Importar…** traz de volta (ou para outro PC). Senhas e chaves não vão no arquivo.
 
 ---
 
@@ -419,6 +466,9 @@ Exemplo — **Modo jogo**: gatilho `app:valorant`, passos `close:chrome, saida:f
 | A voz dele está robótica | Ajustes → IA & Voz → **Voz do Jarvis**: escolha uma voz neural (Antonio, Francisca…). A “Voz do Windows” é a robótica, para quando não há internet. |
 | Não ouço quando ele começa a escutar | **Voz do Jarvis → Som quando ele começa a ouvir → Alto**. |
 | WhatsApp: ligação fica em “Ligando…” | É do WhatsApp Web (as ligações pelo navegador ainda são instáveis e, depois de muitas tentativas seguidas, o WhatsApp segura por algumas horas). Tente mais tarde ou ligue pelo celular. |
+| OBS: “Não consegui falar com o OBS” | Abra o OBS e ative **Ferramentas → Configurações do servidor WebSocket → Ativar** (porta 4455). Se ele pedir senha, cole em Ajustes → OBS Studio. |
+| O ditado escreveu no lugar errado | Ele escreve na janela em que você estava antes de falar. Clique onde quer escrever e fale de novo. |
+| Ele não avisou uma mensagem / lembrete | Com um jogo ou vídeo em tela cheia (ou o OBS gravando), o **Não perturbe automático** guarda os avisos e conta quando acaba. Dá para desligar em Ajustes → Notch. |
 | WhatsApp: “não achei o contato” | Diga o nome como está salvo no celular (ou o número com DDD). Ele mostra os nomes parecidos que encontrou. |
 | “Abrir no…” abre o editor errado / meu editor não aparece | Ajustes → IA & Voz → **Pastas e integrações** → *Editor de código dos projetos*. Se o seu não está na lista, instale-o no local padrão ou deixe o comando dele no PATH e reabra o Jarvis. |
 | Sem temperatura nos círculos | Abra o LibreHardwareMonitor. |
@@ -505,7 +555,9 @@ src-tauri/src/              back-end (Rust)
   jarvis_browser.rs         navegador controlado (Chrome DevTools Protocol)
   whatsapp.rs               WhatsApp Web oculto no próprio app (WebView2 + DevTools), aba e ferramentas
   edge_tts.rs               voz neural da Microsoft (Edge “Ler em voz alta”), sem Python
-  pc_control.rs             programas do PC (UI Automation: ler janela, clicar, digitar) e edição de arquivos
+  pc_control.rs             programas do PC (UI Automation: ler janela, clicar, digitar), ditado e edição de arquivos
+  obs.rs                    OBS Studio pelo servidor WebSocket (gravar, live, cenas, microfone)
+  dnd.rs                    não perturbe automático (tela cheia / OBS no ar)
   pc_monitor.rs             CPU/RAM/GPU/disco, FPS via ETW, ping, temperaturas
   audio.rs                  saídas de som, microfone
   app_update.rs             atualizações pelo GitHub Releases (assinadas)

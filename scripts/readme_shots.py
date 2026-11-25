@@ -112,6 +112,8 @@ def main() -> None:
         ("panel-notes", "open=notes"),
         ("panel-pc", "open=pc&scroll=end"),
         ("panel-routines", "open=tasks&sub=Rotinas"),
+        ("panel-contacts", "open=tasks&sub=Contatos"),
+        ("settings-obs-backup", "open=settings&scroll=OBS Studio"),
         ("settings-ai", "open=settings&scroll=Trocar de IA automaticamente"),
         ("settings-notch", "open=settings&sub=Notch&scroll=Informações no notch"),
         ("settings-voice", "open=settings&enrolled=1&scroll=Reconhecimento da sua voz"),

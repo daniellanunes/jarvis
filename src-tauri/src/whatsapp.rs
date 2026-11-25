@@ -1157,6 +1157,9 @@ fn call_command(said: &str, state: &str) -> Option<&'static str> {
             t = rest.to_string();
         }
     }
+    if t.split(' ').any(|w| w == "obs") {
+        return None;
+    }
     let about_call = ["chamada", "ligacao", "telefone", "whatsapp"].iter().any(|w| t.contains(w));
     let has = |words: &[&str]| words.iter().any(|w| t.starts_with(w) || t.contains(&format!(" {w}")));
     let in_call = state == "active";
@@ -1324,6 +1327,11 @@ fn spawn_message_watch() {
                         continue;
                     }
                 }
+                // Full screen / OBS on air: told when it is over.
+                if let Some(why) = crate::dnd::quiet().await {
+                    crate::dnd::hold_whatsapp(&title, count, why);
+                    continue;
+                }
                 let text = if count > 1 {
                     format!("{title} te mandou {count} mensagens no WhatsApp. Quer que eu leia?")
                 } else {
@@ -1335,6 +1343,11 @@ fn spawn_message_watch() {
             }
         }
     });
+}
+
+/// After "não perturbe": "Quer que eu leia?" about this contact's messages.
+pub fn offer_reading(contact: &str, count: u32) {
+    set_incoming(Some(Incoming::AskRead(contact.to_string(), count)));
 }
 
 /// What the contact sent, said in a few words ("mandou um áudio").
@@ -1431,6 +1444,16 @@ async fn answer_incoming(said: &str) -> Option<String> {
             Some(format!("Vou mandar para {}: \"{}\". Posso enviar?", who(&contact), text))
         }
     }
+}
+
+/// A routine's `whatsapp:` step: holds the message and asks out loud
+/// "Posso enviar?" (the answer is heard like any other).
+pub fn ask_to_send(app: &tauri::AppHandle, to: &str, msg: &str) -> String {
+    let name = resolve_contact(to);
+    let _ = prepare(&name, msg);
+    let text = format!("Vou mandar para {}: \"{}\". Posso enviar?", who(&name), msg.trim());
+    let _ = tauri::Emitter::emit_to(app, crate::island::WINDOW_LABEL, "whatsapp-incoming", json!({ "contact": name, "text": text }));
+    text
 }
 
 /// "Avisa quando a Carol mandar mensagem" (or stop): the brain's tool.

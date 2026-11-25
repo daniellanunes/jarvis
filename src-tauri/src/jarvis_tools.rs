@@ -160,6 +160,14 @@ pub fn declarations() -> Vec<Value> {
             }, "required": ["to"]}
         }),
         json!({
+            "name": "obs_control",
+            "description": "Controla o OBS Studio (precisa estar aberto): gravar, live, cenas, microfone, replay, câmera virtual e status.",
+            "parameters": {"type": "OBJECT", "properties": {
+                "action": {"type": "STRING", "enum": ["record_start", "record_stop", "record_pause", "record_resume", "stream_start", "stream_stop", "scene", "scenes", "mute", "unmute", "replay_save", "virtualcam_start", "virtualcam_stop", "status"]},
+                "value": {"type": "STRING", "description": "Nome da cena (scene) ou da fonte de áudio (mute/unmute; vazio = microfone)."}
+            }, "required": ["action"]}
+        }),
+        json!({
             "name": "whatsapp_call_control",
             "description": "Controla a ligação do WhatsApp em andamento: encerrar (hangup), atender (accept), recusar (decline) ou ligar/desligar o microfone da ligação (mute). Use SEMPRE esta ferramenta para ligações; nunca media_control.",
             "parameters": {"type": "OBJECT", "properties": {
@@ -228,6 +236,7 @@ pub fn status_line(name: &str, args: &Value) -> Option<(String, String)> {
         "whatsapp_unread" => ("Vendo o WhatsApp…".into(), String::new()),
         "whatsapp_watch" => ("Configurando o aviso…".into(), s("contact")),
         "whatsapp_call_control" => ("Na ligação…".into(), s("action")),
+        "obs_control" => ("No OBS…".into(), s("action")),
         "whatsapp_nickname" => ("Guardando o apelido…".into(), s("nick")),
         "whatsapp_call" => ("Preparando a ligação…".into(), s("to")),
         _ => return None,
@@ -449,6 +458,7 @@ pub async fn run(
             None => Err("Qual conversa?".into()),
         },
         "whatsapp_unread" => crate::whatsapp::unread().await,
+        "obs_control" => crate::obs::act(&s("action").unwrap_or_default(), &s("value").unwrap_or_default()).await,
         "whatsapp_call_control" => match s("action").as_deref() {
             Some(a @ ("hangup" | "accept" | "decline" | "mute")) => crate::whatsapp::call_action(a).await.map(|c| {
                 if c.state == "none" {

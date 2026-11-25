@@ -10,6 +10,7 @@ mod claude;
 mod codex_plan;
 mod config_file;
 mod desktop;
+mod dnd;
 mod edge_tts;
 mod file_search;
 mod files;
@@ -36,6 +37,7 @@ mod media_sessions;
 mod migrate;
 mod net;
 mod notes;
+mod obs;
 mod openai_compat;
 mod pc_control;
 mod pc_monitor;
@@ -891,6 +893,7 @@ pub fn run() {
             media_sessions::media_now,
             media_sessions::media_control,
             media_sessions::player_control,
+            obs::obs_test,
             selection::jarvis_selected_text,
             selection::jarvis_copy_text,
             pc_monitor::net_speed_test,
@@ -941,6 +944,8 @@ pub fn run() {
             jarvis_pc::jarvis_now_playing,
             jarvis_store::jarvis_data_load,
             jarvis_store::jarvis_data_save,
+            jarvis_store::jarvis_config_export,
+            jarvis_store::jarvis_config_import,
             jarvis_store::jarvis_scan_projects,
             jarvis_store::jarvis_sync_obsidian,
             open_dashboard_window,
@@ -981,6 +986,7 @@ pub fn run() {
             media_sessions::spawn(handle.clone());
             routines::spawn(handle.clone());
             alerts::spawn(handle.clone());
+            dnd::spawn(handle.clone());
             wakeword::spawn(handle.clone());
             whatsapp::init(&handle);
             app_update::spawn(handle.clone());

@@ -17,6 +17,7 @@ pub const KNOWN_KEYS: &[&str] = &[
     "n8n-api-key",
     "vercel-token",
     "github-token",
+    "obs-password",
     "stripe-api-key",
     "resend-api-key",
     "notion-api-key",
@@ -120,6 +121,7 @@ mod tests {
             include_str!("integrations.rs"),
             include_str!("openai_compat.rs"),
             include_str!("claude.rs"),
+            include_str!("obs.rs"),
         ];
         let mut missing = Vec::new();
         for src in sources {

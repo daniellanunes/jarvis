@@ -1768,7 +1768,7 @@ export async function startJarvisNotch(root: HTMLElement) {
 
   function renderRoutinesBody(main: HTMLElement) {
     const nameIn = h("input", { class: "input", style: "width:155px", placeholder: "Nome (ex: Trabalho)" }) as HTMLInputElement;
-    const targetsIn = h("input", { class: "input", style: "flex:1", placeholder: "Passos: spotify, close:chrome, spotify:lofi, volume:30, saida:fone, mic:off, say:Bom jogo!" }) as HTMLInputElement;
+    const targetsIn = h("input", { class: "input", style: "flex:1", placeholder: "Passos: obs, esperar:5, obs:cena Câmera, obs:gravar, projeto:site, teclas:ctrl+s, digitar:oi, spotify:lofi, volume:30, close:chrome, whatsapp:Bia: chego já, say:Bom jogo!" }) as HTMLInputElement;
     const triggerIn = h(
       "select",
       { class: "input", style: "width:150px;color-scheme:dark" },
@@ -1836,7 +1836,7 @@ export async function startJarvisNotch(root: HTMLElement) {
       h("div", { class: "row", style: "margin-top:6px" }, triggerIn, triggerVal, h("button", { class: "btn", text: "Criar", onclick: () => void addRoutine() })),
       h("div", {
         style: "font-size:11px;color:var(--text-3);line-height:1.5;margin:6px 0 10px",
-        text: "Com gatilho, a rotina roda sozinha quando o app abre (ex.: valorant) ou no horário (ex.: 18:00).",
+        text: "Passos separados por vírgula: um programa ou site abre; esperar:5 espera 5 s; teclas:ctrl+shift+n e digitar:texto agem na janela da frente; obs:gravar / obs:live / obs:cena Câmera / obs:mutar controlam o OBS; projeto:nome abre o projeto no editor; whatsapp:Bia: texto pergunta antes de mandar; spotify:, volume:, saida:, mic:, close:, say: como antes. Com gatilho, a rotina roda sozinha quando o app abre (ex.: valorant) ou no horário (ex.: 18:00). Também dá para rodar falando o nome.",
       }),
       data.routines.length ? grid : h("div", { class: "empty-state", text: "Nenhuma rotina criada." }),
     );
@@ -2654,6 +2654,91 @@ export async function startJarvisNotch(root: HTMLElement) {
     );
   }
 
+  /** Backup: routines, nicknames, watched contacts, voice and looks, in a file. */
+  function renderBackup(): HTMLElement {
+    const status = h("div", { class: "tt-hint", style: "margin:6px 0 0" });
+    const picker = h("input", { type: "file", accept: ".json,application/json", style: "display:none" }) as HTMLInputElement;
+    picker.addEventListener("change", async () => {
+      const file = picker.files?.[0];
+      picker.value = "";
+      if (!file) return;
+      try {
+        const res = await Bridge.configImport(await file.text());
+        await saveSettings({ ...State.settings, ...(res.settings as Partial<Settings>) });
+        const fresh = await Bridge.jarvisDataLoad();
+        if (fresh) data = { ...data, ...fresh };
+        showToast(res.message);
+        render();
+      } catch (e) {
+        status.textContent = String(e).replace(/^Error:\s*/, "");
+      }
+    });
+    const exportIt = async () => {
+      try {
+        const path = await Bridge.configExport();
+        status.textContent = `Salvo em ${path}`;
+        void Bridge.jarvisOpenTarget(path.replace(/[\\/][^\\/]*$/, ""));
+      } catch (e) {
+        status.textContent = String(e).replace(/^Error:\s*/, "");
+      }
+    };
+    return h(
+      "div",
+      { class: "tt-card", style: "margin-bottom:8px" },
+      h("div", { class: "tt-card-title", text: "Backup das configurações" }),
+      h(
+        "div",
+        { class: "row", style: "gap:8px" },
+        h("button", { class: "btn", text: "Exportar", onclick: () => void exportIt() }),
+        h("button", { class: "btn btn-ghost", text: "Importar…", onclick: () => picker.click() }),
+        picker,
+      ),
+      status,
+      h("div", {
+        class: "tt-hint",
+        style: "margin:6px 0 0",
+        text: "Rotinas, apelidos, contatos com aviso, voz, visual e preferências num arquivo (em Documentos) — para levar a outro PC ou guardar. Senhas e chaves não vão junto: elas ficam no cofre do Windows.",
+      }),
+    );
+  }
+
+  /** OBS by voice: its WebSocket password in the Windows vault, and a test. */
+  function renderObsSettings(): HTMLElement {
+    const input = h("input", { class: "input", type: "password", placeholder: "Senha do servidor WebSocket do OBS", style: "flex:1;height:34px" }) as HTMLInputElement;
+    const status = h("span", { class: "tt-row-meta" });
+    void Bridge.secretPresent("obs-password").then((has) => {
+      if (has && !status.textContent) status.textContent = "Senha salva";
+    });
+    const save = async () => {
+      if (!input.value.trim()) return;
+      await Bridge.secretSet("obs-password", input.value.trim());
+      input.value = "";
+      status.textContent = "Senha salva";
+    };
+    const test = async () => {
+      status.textContent = "Testando…";
+      status.textContent = await Bridge.obsTest().catch((e) => String(e).replace(/^Error:\s*/, ""));
+    };
+    return h(
+      "div",
+      { class: "tt-card", style: "margin-bottom:8px" },
+      h("div", { class: "tt-card-title", text: "OBS Studio" }),
+      h(
+        "div",
+        { class: "tt-searchbar" },
+        input,
+        h("button", { class: "btn", text: "Salvar", onclick: () => void save() }),
+        h("button", { class: "btn btn-ghost", text: "Testar", onclick: () => void test() }),
+      ),
+      status,
+      h("div", {
+        class: "tt-hint",
+        style: "margin:6px 0 0",
+        text: "No OBS: Ferramentas → Configurações do servidor WebSocket → Ativar servidor (porta 4455) e copie a senha. Depois: “começa a gravar”, “encerra a live”, “troca para a cena Câmera”, “muta o microfone do OBS”.",
+      }),
+    );
+  }
+
   /** The code editor projects open in, among the ones found on this PC. */
   let editorsFound: { name: string; path: string }[] | null = null;
   function renderEditorPicker(): HTMLElement {
@@ -2729,9 +2814,9 @@ export async function startJarvisNotch(root: HTMLElement) {
 
   /** Weather, PC usage rings and FPS: what the pill shows next to the clock. */
   function renderNotchInfoSettings(): HTMLElement {
-    type Flag = "jarvisNotchWeather" | "jarvisNotchPc" | "jarvisNotchFps" | "jarvisNotchNet" | "jarvisGameMode" | "jarvisMorningBriefing" | "jarvisGameOtherScreen";
+    type Flag = "jarvisNotchWeather" | "jarvisNotchPc" | "jarvisNotchFps" | "jarvisNotchNet" | "jarvisGameMode" | "jarvisMorningBriefing" | "jarvisGameOtherScreen" | "jarvisAutoDnd";
     const row = (key: Flag, title: string, desc: string, extra?: HTMLElement) => {
-      const on = key === "jarvisGameOtherScreen" ? State.settings[key] !== false : Boolean(State.settings[key]);
+      const on = key === "jarvisGameOtherScreen" || key === "jarvisAutoDnd" ? State.settings[key] !== false : Boolean(State.settings[key]);
       return h(
         "div",
         { class: `nw-setting ${on ? "on" : ""}` },
@@ -2828,6 +2913,7 @@ export async function startJarvisNotch(root: HTMLElement) {
       ),
       row("jarvisNotchNet", "Internet", "Ping ao lado do relógio; avisa em vermelho quando a conexão cai."),
       row("jarvisGameMode", "Modo jogo", "Com um jogo aberto, o notch mostra só o FPS e o Jarvis fica sem sons. No fim, um resumo da sessão (tempo, FPS médio e 1% low)."),
+      row("jarvisAutoDnd", "Não perturbe automático", "Em tela cheia (jogo, vídeo) ou com o OBS gravando/ao vivo, o Jarvis guarda os avisos do WhatsApp e os lembretes e conta tudo quando acabar."),
       row("jarvisMorningBriefing", "Bom dia", "No primeiro início do dia, o Jarvis fala o clima, seus compromissos e tarefas. Também dá para pedir: “bom dia, Jarvis”."),
     );
   }
@@ -3518,8 +3604,10 @@ export async function startJarvisNotch(root: HTMLElement) {
       renderMicSettings(),
       sectionHead("Pastas e integrações"),
       renderEditorPicker(),
+      renderObsSettings(),
       renderFolderSettings(),
       sectionHead("Sobre"),
+      renderBackup(),
       renderAboutUpdates(),
     );
   }

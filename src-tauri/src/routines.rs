@@ -8,6 +8,12 @@
 //! - `saida:fone`          switches the audio output
 //! - `mic:off` / `mic:on`  mutes / unmutes the microphones
 //! - `say:texto`           Jarvis says it in the notch
+//! - `esperar:5`           waits 5 seconds (an app that takes a while to open)
+//! - `teclas:ctrl+shift+n` presses keys in the window in front
+//! - `digitar:texto`       types it in the window in front
+//! - `obs:gravar`          OBS: gravar, parar, live, parar live, cena X, mutar…
+//! - `projeto:nome`        opens that project (in the projects folder) in the editor
+//! - `whatsapp:Bia: texto` asks "Posso enviar?" before sending it
 //! - anything else         opened as usual (app, site, folder)
 
 use std::collections::{HashMap, HashSet};
@@ -46,6 +52,12 @@ pub fn parse_step(step: &str) -> (&'static str, String) {
             "saida" | "saída" | "output" => return ("output", v),
             "mic" | "microfone" => return ("mic", v),
             "say" | "falar" | "dizer" => return ("say", v),
+            "wait" | "esperar" | "aguardar" => return ("wait", v),
+            "keys" | "teclas" | "atalho" => return ("keys", v),
+            "type" | "digitar" | "escrever" => return ("type", v),
+            "obs" => return ("obs", v),
+            "projeto" | "project" => return ("project", v),
+            "whatsapp" | "mensagem" => return ("whatsapp", v),
             _ => {}
         }
     }
@@ -71,9 +83,30 @@ fn close_program(name: &str) -> Result<String, String> {
     Err(format!("Não sei fechar {exe} aqui"))
 }
 
+/// A project folder by name ("alugamobile", "aluga mobile").
+pub fn find_project(name: &str) -> Option<String> {
+    let want = crate::file_search::fold(name.trim()).replace([' ', '-', '_'], "");
+    if want.is_empty() {
+        return None;
+    }
+    let dirs: Vec<(String, std::path::PathBuf)> = std::fs::read_dir(crate::jarvis_config::projects_dir())
+        .ok()?
+        .flatten()
+        .filter(|e| e.path().is_dir())
+        .map(|e| (crate::file_search::fold(&e.file_name().to_string_lossy()).replace([' ', '-', '_'], ""), e.path()))
+        .collect();
+    dirs.iter()
+        .find(|(n, _)| *n == want)
+        .or_else(|| dirs.iter().filter(|(n, _)| n.starts_with(&want)).min_by_key(|(n, _)| n.len()))
+        .or_else(|| dirs.iter().filter(|(n, _)| n.contains(&want)).min_by_key(|(n, _)| n.len()))
+        .map(|(_, p)| p.to_string_lossy().to_string())
+}
+
 /// Runs every step; returns one line per step.
 pub async fn run(app: &AppHandle, rt: &RoutineItem) -> Vec<String> {
     let mut out = Vec::new();
+    // The program the routine opened last: typing and keys go to it.
+    let mut last_app: Option<String> = None;
     for t in &rt.targets {
         let (kind, v) = parse_step(t);
         let r: Result<String, String> = match kind {
@@ -95,7 +128,43 @@ pub async fn run(app: &AppHandle, rt: &RoutineItem) -> Vec<String> {
                 let _ = app.emit_to(crate::island::WINDOW_LABEL, "jarvis-say", v.clone());
                 Ok(v.clone())
             }
-            _ => crate::jarvis_pc::jarvis_open_target(v.clone()),
+            "wait" => match v.trim().trim_end_matches('s').replace(',', ".").parse::<f32>() {
+                Ok(secs) => {
+                    let secs = secs.clamp(0.0, 120.0);
+                    tokio::time::sleep(Duration::from_millis((secs * 1000.0) as u64)).await;
+                    Ok(format!("Esperei {secs} s"))
+                }
+                Err(_) => Err(format!("Tempo inválido: {v}")),
+            },
+            "keys" | "type" => {
+                let (text, keys) = if kind == "type" { (v.clone(), String::new()) } else { (String::new(), v.clone()) };
+                let target = last_app.clone();
+                tauri::async_runtime::spawn_blocking(move || match target {
+                    // In front first (it may still be opening), then the keys.
+                    Some(app) => crate::pc_control::type_into(&app, &text, &keys, "")
+                        .or_else(|_| if keys.is_empty() { crate::pc_control::type_here(&text) } else { crate::pc_control::press_here(&keys) }.map(|_| String::new())),
+                    None => if keys.is_empty() { crate::pc_control::type_here(&text) } else { crate::pc_control::press_here(&keys) }.map(|_| String::new()),
+                })
+                .await
+                .unwrap_or_else(|e| Err(e.to_string()))
+                .map(|_| if kind == "type" { "Digitei".to_string() } else { format!("Apertei {v}") })
+            }
+            "obs" => crate::obs::step(&v).await,
+            "project" => match find_project(&v) {
+                Some(path) => crate::jarvis_pc::jarvis_open_target(format!("editor:{path}")),
+                None => Err(format!("Projeto não encontrado: {v}")),
+            },
+            "whatsapp" => match v.split_once(':') {
+                Some((to, msg)) if !to.trim().is_empty() && !msg.trim().is_empty() => Ok(crate::whatsapp::ask_to_send(app, to, msg)),
+                _ => Err("Use whatsapp:Contato: mensagem".into()),
+            },
+            _ => {
+                let r = crate::jarvis_pc::jarvis_open_target(v.clone());
+                if r.is_ok() {
+                    last_app = Some(v.clone());
+                }
+                r
+            }
         };
         out.push(r.unwrap_or_else(|e| format!("Erro: {e}")));
     }
@@ -288,3 +357,38 @@ mod probe {
     }
 }
 
+
+#[cfg(test)]
+mod steps {
+    use super::parse_step;
+
+    #[test]
+    fn every_step_kind_is_read() {
+        assert_eq!(parse_step("esperar:5"), ("wait", "5".into()));
+        assert_eq!(parse_step("teclas: ctrl+shift+n"), ("keys", "ctrl+shift+n".into()));
+        assert_eq!(parse_step("digitar:Olá, tudo bem?"), ("type", "Olá, tudo bem?".into()));
+        assert_eq!(parse_step("obs:cena Câmera"), ("obs", "cena Câmera".into()));
+        assert_eq!(parse_step("projeto:alugamobile"), ("project", "alugamobile".into()));
+        assert_eq!(parse_step("whatsapp:Bia: chego em 10 min"), ("whatsapp", "Bia: chego em 10 min".into()));
+        assert_eq!(parse_step("https://youtube.com"), ("open", "https://youtube.com".into()));
+        assert_eq!(parse_step(r"C:\Jogos\jogo.exe"), ("open", r"C:\Jogos\jogo.exe".into()));
+        assert_eq!(parse_step("Antigravity IDE"), ("open", "Antigravity IDE".into()));
+    }
+}
+
+#[cfg(all(test, windows))]
+mod live_steps {
+    /// Opens the Calculator, waits, types a sum, reads it, finds a project.
+    /// `cargo test --lib routines::live_steps -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn open_wait_type_and_project() {
+        // As a routine does it: open, then type and press into that program.
+        crate::jarvis_pc::jarvis_open_target("calc".into()).unwrap();
+        println!("{:?}", crate::pc_control::type_into("calc", "12*3=", "", ""));
+        let r = crate::pc_control::read("calculadora").unwrap();
+        println!("{}", r.lines().find(|l| l.contains("exibição")).unwrap_or("?"));
+        println!("{:?}", crate::pc_control::type_into("calc", "", "alt+f4", ""));
+        println!("projeto: {:?}", super::find_project("aluga mobile"));
+    }
+}
