@@ -378,6 +378,7 @@ Diga **“Jarvis”** e o pedido, clique no notch e digite, ou use **Ctrl+Alt+Es
 | “Pausa” / “próxima” | Funciona no app que estiver tocando (Spotify, YouTube…) |
 | “Volume 30” / “muta o microfone” / “muda pro fone” | Instantâneo |
 | “O que tenho amanhã?” / “marca dentista sexta às 10h e me avisa 1 hora antes” | Agenda com notificação |
+| “Coloca um alarme para daqui a 20 minutos: tirar o bolo” | Evento na agenda; no PC toca como despertador |
 | “Tenho e-mail novo?” / “resume o e-mail da Ana” / “responde dizendo que confirmo” | Gmail (rascunho; envio só com Permitir) |
 | “Acha o PDF do contrato de março” | Busca nos seus arquivos e abre |
 | “Abre o projeto aluga” | Abre a pasta do projeto no **editor que você escolheu** em Ajustes |
