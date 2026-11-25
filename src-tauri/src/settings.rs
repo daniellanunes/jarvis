@@ -138,6 +138,10 @@ pub struct Settings {
     pub jarvis_listen_chime: String,
     /// Keep quiet (hold messages and reminders) in full screen or while OBS records.
     pub jarvis_auto_dnd: bool,
+    /// Seasonal looks: "auto" (the calendar), "off", or a season by hand.
+    pub jarvis_season: String,
+    /// The user's birthday, "DD/MM" (its own look and greeting that day).
+    pub jarvis_birthday: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -226,6 +230,8 @@ impl Default for Settings {
             jarvis_notch_shape: "notch".into(),
             jarvis_listen_chime: "loud".into(),
             jarvis_auto_dnd: true,
+            jarvis_season: "auto".into(),
+            jarvis_birthday: String::new(),
         }
     }
 }
@@ -536,7 +542,9 @@ mod tests {
   "jarvisTtsRate": -5,
   "jarvisNotchShape": "island",
   "jarvisListenChime": "soft",
-  "jarvisAutoDnd": false
+  "jarvisAutoDnd": false,
+  "jarvisSeason": "natal",
+  "jarvisBirthday": "07/08"
 }"##;
 
     fn custom() -> Value {
@@ -974,6 +982,8 @@ mod tests {
                 "jarvisNotchShape",
                 "jarvisListenChime",
                 "jarvisAutoDnd",
+                "jarvisSeason",
+                "jarvisBirthday",
             ]
         );
         let _ = std::fs::remove_dir_all(&dir);

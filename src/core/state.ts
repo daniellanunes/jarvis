@@ -208,6 +208,10 @@ export interface Settings {
   jarvisListenChime?: string;
   /** Hold messages and reminders in full screen or while OBS records. */
   jarvisAutoDnd?: boolean;
+  /** Seasonal looks: "auto" | "off" | a season id (seasons.ts). */
+  jarvisSeason?: string;
+  /** "DD/MM". */
+  jarvisBirthday?: string;
   /** "local": the enrolled "Jarvis" spotted on the PC; "cloud": transcribed sentences. */
   jarvisWakeEngine?: "local" | "cloud";
   /** Local wake word: 0.35 (easier) – 0.7 (stricter). */
@@ -271,6 +275,8 @@ export const DEFAULT_SETTINGS: Settings = {
   jarvisNotchShape: "notch",
   jarvisListenChime: "loud",
   jarvisAutoDnd: true,
+  jarvisSeason: "auto",
+  jarvisBirthday: "",
   jarvisWakeEngine: "local",
   jarvisWakeThreshold: 0.45,
 };

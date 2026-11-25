@@ -1,0 +1,225 @@
+/* Seasonal looks (seasons.ts, season_fx.ts): a class on <html> —
+   season-natal, season-anonovo, season-carnaval, season-pascoa,
+   season-junina, season-halloween, season-aniversario — sets the colours; the
+   garland, the canvas, the corner ornament and the card are elements made by
+   season_fx.ts. Animations use transforms and opacity only. */
+
+html.season-natal { --season-a: #ef4444; --season-b: #22c55e; --season-glow: rgba(220, 38, 38, 0.22); --season-glow-2: rgba(34, 197, 94, 0.14); --season-ink: #fecaca; }
+html.season-anonovo { --season-a: #facc15; --season-b: #f8fafc; --season-glow: rgba(250, 204, 21, 0.2); --season-glow-2: rgba(96, 165, 250, 0.12); --season-ink: #fde68a; }
+html.season-carnaval { --season-a: #a855f7; --season-b: #facc15; --season-glow: rgba(168, 85, 247, 0.22); --season-glow-2: rgba(236, 72, 153, 0.16); --season-ink: #f5d0fe; }
+html.season-pascoa { --season-a: #f9a8d4; --season-b: #a7f3d0; --season-glow: rgba(249, 168, 212, 0.18); --season-glow-2: rgba(167, 243, 208, 0.12); --season-ink: #fbcfe8; }
+html.season-junina { --season-a: #f97316; --season-b: #facc15; --season-glow: rgba(249, 115, 22, 0.2); --season-glow-2: rgba(250, 204, 21, 0.1); --season-ink: #fed7aa; }
+html.season-halloween { --season-a: #f97316; --season-b: #a855f7; --season-glow: rgba(249, 115, 22, 0.2); --season-glow-2: rgba(126, 34, 206, 0.2); --season-ink: #fdba74; }
+html.season-aniversario { --season-a: #f472b6; --season-b: #60a5fa; --season-glow: rgba(244, 114, 182, 0.2); --season-glow-2: rgba(96, 165, 250, 0.14); --season-ink: #fbcfe8; }
+
+/* ── The pill: a soft tint and the garland hanging under it ──────────────── */
+html[class*="season-"] .notch-pill,
+html[class*="season-"] .notch-voice-bar {
+  position: relative;
+  overflow: visible;
+}
+.season-garland {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: -1px;
+  height: 11px;
+  pointer-events: none;
+  z-index: 2;
+}
+.season-garland svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+/* A bulb: a lit glass drop with its little socket. */
+.season-bulb {
+  position: absolute;
+  width: 5px;
+  height: 7px;
+  margin: -1px 0 0 -2.5px;
+  border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
+  background: radial-gradient(circle at 35% 30%, #fff 0 18%, var(--c) 45%);
+  box-shadow: 0 0 5px 1px var(--c), 0 0 10px 1px color-mix(in srgb, var(--c) 45%, transparent);
+  animation: season-bulb 2.2s ease-in-out infinite;
+}
+.season-bulb::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: 1px;
+  width: 3px;
+  height: 2px;
+  border-radius: 1px;
+  background: #3f3f46;
+}
+@keyframes season-bulb {
+  0%, 100% { opacity: 1; }
+  45% { opacity: 0.35; box-shadow: none; }
+}
+/* Festa Junina / birthday: little flags instead of bulbs. */
+.season-garland.flags .season-bulb {
+  width: 7px;
+  height: 8px;
+  margin: 0 0 0 -3.5px;
+  border-radius: 0;
+  background: var(--c);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
+  box-shadow: none;
+  transform-origin: 50% 0;
+  animation: season-flag 2.6s ease-in-out infinite;
+}
+.season-garland.flags .season-bulb::before {
+  display: none;
+}
+@keyframes season-flag {
+  0%, 100% { transform: rotate(-7deg); }
+  50% { transform: rotate(7deg); }
+}
+
+/* ── The open panel: a glow from the top and the animated canvas ──────────── */
+html[class*="season-"] .notch-panel {
+  position: relative;
+  overflow: hidden;
+}
+html[class*="season-"] .notch-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(120% 55% at 30% -10%, var(--season-glow), transparent 60%),
+    radial-gradient(90% 45% at 85% -5%, var(--season-glow-2), transparent 62%);
+}
+.season-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 6;
+  opacity: 0.75;
+}
+
+/* Festa Junina / birthday: flags across the top of the panel too. */
+.season-garland.panel-top {
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: auto;
+  height: 16px;
+  z-index: 7;
+}
+.season-garland.panel-top .season-bulb {
+  width: 11px;
+  height: 13px;
+  margin-left: -5.5px;
+}
+
+/* The corner ornament, bottom right of the panel. */
+.season-art {
+  position: absolute;
+  right: 14px;
+  bottom: 10px;
+  width: 78px;
+  height: 78px;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0.92;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
+}
+.season-art svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.season-art.art-halloween {
+  top: 0;
+  bottom: auto;
+  right: 0;
+  width: 96px;
+  height: 96px;
+}
+.season-art.art-pumpkin {
+  width: 62px;
+  height: 52px;
+}
+.season-art .art-tw { animation: season-tw 1.6s ease-in-out infinite; }
+.season-art .d2 { animation-delay: 0.4s; }
+.season-art .d3 { animation-delay: 0.8s; }
+.season-art .d4 { animation-delay: 1.2s; }
+@keyframes season-tw { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.season-art .art-star { transform-origin: 45px 20px; animation: season-star 3s ease-in-out infinite; }
+@keyframes season-star { 0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px #facc15); } 50% { transform: scale(1.12); filter: drop-shadow(0 0 6px #facc15); } }
+.season-art .art-flame { transform-origin: 50% 100%; transform-box: fill-box; animation: season-flame 0.9s ease-in-out infinite alternate; }
+@keyframes season-flame { from { transform: scaleY(1) skewX(0); } to { transform: scaleY(1.1) skewX(-4deg); } }
+.season-art .art-spider { animation: season-spider 4s ease-in-out infinite; }
+@keyframes season-spider { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(10px); } }
+.season-art .art-clink-l { transform-origin: 37px 88px; animation: season-clink-l 2.4s ease-in-out infinite; }
+.season-art .art-clink-r { transform-origin: 63px 88px; animation: season-clink-r 2.4s ease-in-out infinite; }
+@keyframes season-clink-l { 0%, 70%, 100% { transform: rotate(0); } 80% { transform: rotate(9deg); } }
+@keyframes season-clink-r { 0%, 70%, 100% { transform: rotate(0); } 80% { transform: rotate(-9deg); } }
+.season-art .art-sway { transform-origin: 100px 30px; animation: season-flag 2s ease-in-out infinite; }
+
+/* ── The season card on Início ───────────────────────────────────────────── */
+.season-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--season-a) 40%, transparent);
+  background:
+    linear-gradient(100deg, color-mix(in srgb, var(--season-a) 24%, transparent), color-mix(in srgb, var(--season-b) 12%, transparent) 70%),
+    rgba(255, 255, 255, 0.02);
+}
+.season-card .season-emoji {
+  font-size: 24px;
+  line-height: 1;
+  animation: season-bob 2.8s ease-in-out infinite;
+}
+@keyframes season-bob { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-3px) rotate(4deg); } }
+.season-card .season-title {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--text);
+}
+.season-card .season-sub {
+  font-size: 12px;
+  color: var(--season-ink);
+  opacity: 0.9;
+}
+/* A light sweeping across the card now and then. */
+.season-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.12) 50%, transparent 65%);
+  transform: translateX(-100%);
+  animation: season-sweep 6s ease-in-out infinite;
+}
+@keyframes season-sweep { 0%, 70% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+
+/* Ajustes: the season chips. */
+.season-chip.on {
+  border-color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .season-bulb,
+  .season-garland.flags .season-bulb,
+  .season-art *,
+  .season-card .season-emoji,
+  .season-card::after {
+    animation: none !important;
+  }
+  .season-canvas {
+    display: none;
+  }
+}

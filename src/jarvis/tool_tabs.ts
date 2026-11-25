@@ -476,8 +476,12 @@ export function createToolTabs(ctx: ToolTabsCtx) {
     results: null as WaChat[] | null,
     searching: false,
     ticks: 0,
+    /** The list was read fully once (the first open reads the top first). */
+    loadedOnce: false,
     /** Chats where nothing older is left to load. */
     noOlder: new Set<string>(),
+    /** Chats already opened: shown at once when opened again, then refreshed. */
+    threads: new Map<string, WaThread>(),
   };
 
   const errText = (e: unknown) => String(e).replace(/^Error:\s*/, "");
@@ -549,12 +553,21 @@ export function createToolTabs(ctx: ToolTabsCtx) {
 
   async function waLoadState() {
     wa.busy = true;
+    // The list as last read, at once (the real one comes right after).
+    if (wa.chats == null) {
+      const cached = await Bridge.whatsappChatsCached().catch(() => null);
+      if (cached?.chats.length && wa.chats == null) {
+        wa.chats = cached.chats;
+        wa.more = cached.more;
+        ctx.rerender();
+      }
+    }
     try {
       wa.state = await Bridge.whatsappState();
       wa.error = "";
-      if (wa.state.state === "ready" && wa.chats == null) {
+      if (wa.state.state === "ready" && (wa.chats == null || !wa.loadedOnce)) {
         wa.busy = false;
-        return void waLoadChats();
+        return void waLoadChats(wa.chats != null);
       }
     } catch (e) {
       wa.error = String(e).replace(/^Error:\s*/, "");
@@ -573,7 +586,15 @@ export function createToolTabs(ctx: ToolTabsCtx) {
     try {
       // The periodic refresh reads only the top (fast); older chats already
       // loaded stay below it.
-      const page = await Bridge.whatsappChats(quiet ? 20 : wa.limit, wa.filter);
+      // The first time: the chats on screen first (no scrolling), then the rest.
+      const first = !wa.loadedOnce && wa.limit > 20;
+      const page = await Bridge.whatsappChats(quiet || first ? 20 : wa.limit, wa.filter);
+      if (first) {
+        wa.loadedOnce = true;
+        window.setTimeout(() => {
+          if (!wa.busy) void waLoadAll();
+        }, 50);
+      }
       let next = page.chats;
       if (quiet && wa.chats && wa.chats.length > next.length) {
         const top = new Set(next.map((c) => c.title));
@@ -591,6 +612,22 @@ export function createToolTabs(ctx: ToolTabsCtx) {
     wa.loading = false;
     wa.busy = false;
     if (!same && ctx.isOpen("whatsapp")) ctx.rerender();
+  }
+
+  /** The rest of the first page of chats, quietly, after the top is shown. */
+  async function waLoadAll() {
+    wa.busy = true;
+    try {
+      const page = await Bridge.whatsappChats(wa.limit, wa.filter);
+      if (page.chats.length) {
+        wa.chats = page.chats;
+        wa.more = page.more;
+      }
+    } catch {
+      /* the top is there already */
+    }
+    wa.busy = false;
+    if (ctx.isOpen("whatsapp")) ctx.rerender();
   }
 
   async function waMoreChats() {
@@ -712,7 +749,7 @@ export function createToolTabs(ctx: ToolTabsCtx) {
       // Another chat: its header right away, the messages when they come.
       if (wa.thread?.title !== title) {
         const known = (wa.results ?? wa.chats ?? []).find((c) => c.title === title);
-        wa.thread = { title, messages: [], avatar: known?.avatar ?? "" };
+        wa.thread = wa.threads.get(title) ?? { title, messages: [], avatar: known?.avatar ?? "" };
         wa.draft = "";
       }
       ctx.rerender();
@@ -728,6 +765,8 @@ export function createToolTabs(ctx: ToolTabsCtx) {
       // Nothing new and the user may be typing: leave the page alone.
       if (quiet && JSON.stringify(t) === JSON.stringify(wa.thread) && !wa.error) return;
       wa.thread = t;
+      wa.threads.set(t.title, t);
+      if (wa.threads.size > 30) wa.threads.delete(wa.threads.keys().next().value as string);
       wa.error = "";
     } catch (e) {
       wa.error = String(e).replace(/^Error:\s*/, "");

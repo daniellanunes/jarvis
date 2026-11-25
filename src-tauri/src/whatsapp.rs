@@ -199,34 +199,24 @@ pub fn init(app: &AppHandle) {
     // notch comes up first): calls, messages and the tab are ready when asked.
     if linked_marker().exists() {
         tauri::async_runtime::spawn(async {
-            tokio::time::sleep(Duration::from_secs(3)).await;
+            // Soon after start (the notch is up by then): WhatsApp Web is the slow part.
+            tokio::time::sleep(Duration::from_millis(800)).await;
+            let started = Instant::now();
             if let Ok(mut tab) = Tab::get().await {
                 let state = wait_state(&mut tab, Duration::from_secs(90)).await;
                 let vis = tab.eval("document.visibilityState").await.ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
-                // Calls need the microphone: can this page open it?
-                let mic = tab
-                    .eval(r#"(async () => {
-  let perm = '?';
-  try { perm = (await navigator.permissions.query({ name: 'microphone' })).state; } catch (e) { perm = 'erro'; }
-  let gum = '';
-  try {
-    const s = await Promise.race([navigator.mediaDevices.getUserMedia({ audio: true }), new Promise((_, no) => setTimeout(() => no(new Error('sem resposta em 8 s')), 8000))]);
-    gum = 'ok (' + s.getAudioTracks().map(t => t.label).join(', ') + ')';
-    s.getTracks().forEach(t => t.stop());
-  } catch (e) { gum = 'falhou: ' + (e.name || '') + ' ' + (e.message || e); }
-  let mics = '?';
-  try { mics = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput').length; } catch (e) {}
-  return 'permissão=' + perm + ' | abrir=' + gum + ' | microfones=' + mics;
-})()"#)
-                    .await
-                    .ok()
-                    .and_then(|v| v.as_str().map(str::to_string))
-                    .unwrap_or_else(|| "não consegui testar".into());
-                crate::log::line(format!("whatsapp: microfone: {mic}"));
                 crate::log::line(format!(
-                    "whatsapp: {} (página: {vis})",
-                    if state == "ready" { "pronto" } else { "ainda não conectado (abra a aba WhatsApp)" }
+                    "whatsapp: {} em {:.1} s (página: {vis})",
+                    if state == "ready" { "pronto" } else { "ainda não conectado (abra a aba WhatsApp)" },
+                    started.elapsed().as_secs_f32()
                 ));
+                // The chat list read now: the tab shows it the moment it opens.
+                if state == "ready" {
+                    if let Ok(v) = tab.eval(CHATS_JS).await {
+                        let chats: Vec<WaChat> = serde_json::from_value(v).unwrap_or_default();
+                        remember_chats(&chats, true);
+                    }
+                }
             }
         });
     }
@@ -555,7 +545,7 @@ pub struct WaThread {
     avatar: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct WaChatPage {
     chats: Vec<WaChat>,
@@ -660,6 +650,26 @@ pub async fn chats() -> Result<Vec<WaChat>, String> {
     Ok(serde_json::from_value(v).unwrap_or_default())
 }
 
+/// The last chat list read (filter "Tudo"): shown at once when the tab opens,
+/// then refreshed. In memory only.
+static LAST_CHATS: std::sync::Mutex<Option<WaChatPage>> = std::sync::Mutex::new(None);
+
+/// Keeps the list for the next time the tab opens. `top` = only the chats on
+/// screen were read: the older ones already known stay below.
+fn remember_chats(chats: &[WaChat], top: bool) {
+    if chats.is_empty() {
+        return;
+    }
+    let mut last = LAST_CHATS.lock().unwrap_or_else(|e| e.into_inner());
+    let mut list = chats.to_vec();
+    if top {
+        if let Some(prev) = last.as_ref() {
+            list.extend(prev.chats.iter().filter(|c| !chats.iter().any(|n| n.title == c.title)).cloned());
+        }
+    }
+    *last = Some(WaChatPage { chats: list, more: true });
+}
+
 /// Selects one of WhatsApp's own list filters: "all" | "unread" | "favorites" | "groups".
 async fn set_filter(tab: &mut Tab, filter: &str) {
     let re = match filter {
@@ -708,6 +718,9 @@ pub async fn chat_page_filtered(limit: usize, filter: &str) -> Result<WaChatPage
     if limit <= 20 {
         let v = tab.eval(CHATS_JS).await?;
         let chats: Vec<WaChat> = serde_json::from_value(v).unwrap_or_default();
+        if filter == "all" || filter.is_empty() {
+            remember_chats(&chats, true);
+        }
         return Ok(WaChatPage { more: true, chats });
     }
     let rows = CHATS_JS.trim_end_matches("()").trim_end();
@@ -715,6 +728,9 @@ pub async fn chat_page_filtered(limit: usize, filter: &str) -> Result<WaChatPage
     let v = tab.eval(&js).await?;
     let chats: Vec<WaChat> = serde_json::from_value(v["chats"].clone()).unwrap_or_default();
     crate::log::line(format!("whatsapp: {} conversas carregadas", chats.len()));
+    if filter == "all" || filter.is_empty() {
+        remember_chats(&chats, false);
+    }
     Ok(WaChatPage { chats, more: v["more"].as_bool().unwrap_or(false) })
 }
 
@@ -871,6 +887,16 @@ pub async fn voice_note(chat: &str, action: &str) -> Result<String, String> {
 
 /// Opens a chat and returns its last `count` messages, oldest first.
 pub async fn thread(chat: &str, count: usize) -> Result<WaThread, String> {
+    let started = Instant::now();
+    let r = thread_inner(chat, count).await;
+    let ms = started.elapsed().as_millis();
+    if ms > 1500 {
+        crate::log::line(format!("whatsapp: conversa aberta em {ms} ms"));
+    }
+    r
+}
+
+async fn thread_inner(chat: &str, count: usize) -> Result<WaThread, String> {
     let _busy = BUSY.lock().await;
     let mut tab = ready_tab().await?;
     let title = open_chat(&mut tab, chat).await?;
@@ -902,7 +928,7 @@ const OLDER_JS: &str = r#"(async () => {
   while (count() < WANT && stall < 4) {
     const before = count();
     box.scrollTop = 0;
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 500));
     stall = count() === before ? stall + 1 : 0;
   }
   return count();
@@ -1292,6 +1318,7 @@ fn spawn_message_watch() {
             let Ok(mut tab) = Tab::get().await else { continue };
             let Ok(v) = tab.eval(CHATS_JS).await else { continue };
             let chats: Vec<WaChat> = serde_json::from_value(v).unwrap_or_default();
+            remember_chats(&chats, true);
             let open = match tab.eval(TITLE_JS).await {
                 Ok(Value::String(t)) => t,
                 _ => String::new(),
@@ -1825,6 +1852,12 @@ pub async fn whatsapp_state() -> Result<WaState, String> {
 #[tauri::command]
 pub async fn whatsapp_chats(limit: Option<usize>, filter: Option<String>) -> Result<WaChatPage, String> {
     chat_page_filtered(limit.unwrap_or(30), filter.as_deref().unwrap_or("all")).await
+}
+
+/// The chat list as last read: instant, for the tab to show while it refreshes.
+#[tauri::command]
+pub fn whatsapp_chats_cached() -> Option<WaChatPage> {
+    LAST_CHATS.lock().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
 #[tauri::command]

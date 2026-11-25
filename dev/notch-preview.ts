@@ -183,7 +183,7 @@ const answers: Record<string, (args: any) => unknown> = {
   wakeword_status: () => ({ active: params.has("enrolled"), enrolled: params.has("enrolled"), samples: 0, samplesWanted: 6, error: "" }),
   wakeword_restart: () => null,
   weather_now: (a: any) => ({ place: a?.city ? `${a.city}, Pernambuco` : "Recife, Pernambuco", temp: 30.9, feels: 35.5, max: 31.3, min: 25.8, rainChance: 40, code: 2, isDay: true, kind: params.get("wkind") ?? "partly", label: "Parcialmente nublado" }),
-  boot: () => ({ settings: { jarvisSpotifyClientId: "x", jarvisTheme: params.get("theme") ?? "graphite", jarvisNotchShape: params.get("shape") ?? "notch", ...(params.has("widgets") ? { jarvisNotchWeather: true, jarvisWeatherCity: "Recife", jarvisNotchPc: true, jarvisNotchFps: true, jarvisNotchNet: true, jarvisGameMode: params.has("game") } : {}) }, screen: { x: 0, y: 0, width: 1920, height: 1080, scale: 1 }, version: "dev", hookPath: "", cursorPoll: true }),
+  boot: () => ({ settings: { jarvisSpotifyClientId: "x", jarvisTheme: params.get("theme") ?? "graphite", jarvisNotchShape: params.get("shape") ?? "notch", jarvisSeason: params.get("season") ?? "off", ...(params.has("widgets") ? { jarvisNotchWeather: true, jarvisWeatherCity: "Recife", jarvisNotchPc: true, jarvisNotchFps: true, jarvisNotchNet: true, jarvisGameMode: params.has("game") } : {}) }, screen: { x: 0, y: 0, width: 1920, height: 1080, scale: 1 }, version: "dev", hookPath: "", cursorPoll: true }),
   jarvis_data_load: () => data,
   jarvis_brain_status: () => ({
     groqConfigured: true, geminiConfigured: true, openaiConfigured: false, claudeConfigured: true, ollamaUrl: "", brainMode: "auto",

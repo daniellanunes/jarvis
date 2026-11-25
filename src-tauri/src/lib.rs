@@ -920,6 +920,7 @@ pub fn run() {
             whatsapp::whatsapp_call,
             whatsapp::whatsapp_call_action,
             whatsapp::whatsapp_search,
+            whatsapp::whatsapp_chats_cached,
             whatsapp::whatsapp_thread,
             whatsapp::whatsapp_send,
             jarvis_brain::jarvis_brain_status,
