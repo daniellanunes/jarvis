@@ -2,6 +2,9 @@ import "./notch.css";
 import "./notch_v2.css";
 import "./notch_motion.css";
 import "./glass.css";
+import "./seasons.css";
+import { SEASONS, activeSeason, seasonGreeting, seasonInfo, type SeasonId } from "./seasons";
+import { attachSeasonCanvas, cornerArt, garland, seasonCountdown } from "./season_fx";
 import {
   Bridge,
   onEvent,
@@ -443,6 +446,8 @@ export async function startJarvisNotch(root: HTMLElement) {
   }
 
   function currentOutfit(): Outfit {
+    const season = currentSeason();
+    if (season) return seasonInfo(season).outfit;
     return (data.mochiOutfit as Outfit) || "santaHat";
   }
 
@@ -654,6 +659,55 @@ export async function startJarvisNotch(root: HTMLElement) {
     await Bridge.saveSettings(s);
   }
 
+  /** Today's season (Christmas, New Year…), or null — from the calendar or Ajustes. */
+  function currentSeason(): SeasonId | null {
+    return activeSeason(State.settings.jarvisSeason, new Date(), State.settings.jarvisBirthday);
+  }
+  /** The season's class on <html> (seasons.css); checked again every 10 minutes. */
+  function applySeason() {
+    const now = currentSeason();
+    const cl = document.documentElement.classList;
+    for (const s of SEASONS) cl.toggle(`season-${s.id}`, s.id === now);
+    decorateSeason();
+  }
+  /** The garland under the pill, the animation and ornament in the panel. */
+  function decorateSeason() {
+    const season = currentSeason();
+    for (const el of Array.from(root.children) as HTMLElement[]) {
+      if (el.matches(".notch-pill, .notch-voice-bar")) {
+        el.querySelector(":scope > .season-garland")?.remove();
+        if (season) el.append(garland(season));
+      } else if (el.matches(".notch-panel")) {
+        for (const old of el.querySelectorAll(":scope > .season-art, :scope > [data-season-art], :scope > .season-garland")) old.remove();
+        attachSeasonCanvas(el, season);
+        const art = season ? cornerArt(season) : null;
+        if (art) {
+          art.setAttribute("data-season-art", "");
+          el.append(art);
+        }
+        // Festa Junina and birthdays: bunting across the top of the panel.
+        if (season === "junina" || season === "aniversario") {
+          const flags = garland(season);
+          flags.classList.add("panel-top");
+          // Over the main column only (the sidebar keeps the mascot and name clear).
+          const mainCol = el.querySelector<HTMLElement>(":scope > main");
+          flags.style.left = mainCol ? `${mainCol.offsetLeft}px` : "0";
+          el.append(flags);
+        }
+      }
+    }
+  }
+  // Every render builds the pill / panel anew: they get decorated as they come.
+  new MutationObserver(() => {
+    if (currentSeason() || root.querySelector(".season-garland, .season-art, .season-canvas")) decorateSeason();
+  }).observe(root, { childList: true });
+  window.setInterval(() => {
+    const before = [...document.documentElement.classList].find((c) => c.startsWith("season-")) ?? "";
+    applySeason();
+    const after = [...document.documentElement.classList].find((c) => c.startsWith("season-")) ?? "";
+    if (before !== after) render();
+  }, 600_000);
+
   /** The chosen look (glass.css): classes on <html>, applied at once. */
   function applyTheme() {
     const t = State.settings.jarvisTheme || "graphite";
@@ -663,6 +717,7 @@ export async function startJarvisNotch(root: HTMLElement) {
     const shape = State.settings.jarvisNotchShape || "notch";
     cl.toggle("shape-island", shape === "island");
     cl.toggle("shape-tab", shape === "tab");
+    applySeason();
     // The window's clickable area follows the new shape.
     requestAnimationFrame(() => pushVisibleRect());
   }
@@ -1076,6 +1131,23 @@ export async function startJarvisNotch(root: HTMLElement) {
         { class: "page-head" },
         h("div", { class: "page-title", text: data.userName.trim() ? `${greet}, ${data.userName.trim()}` : greet }),
         h("div", { class: "page-sub", text: dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1) }),
+        (() => {
+          const season = currentSeason();
+          if (!season) return "";
+          const info = seasonInfo(season);
+          const special = seasonGreeting(now, season, data.userName || "");
+          return h(
+            "div",
+            { class: "season-card" },
+            h("span", { class: "season-emoji", text: info.emoji }),
+            h(
+              "div",
+              {},
+              h("div", { class: "season-title", text: special ?? `Clima de ${info.name}` }),
+              h("div", { class: "season-sub", text: seasonCountdown(season, now) }),
+            ),
+          );
+        })(),
       ),
       bar,
       h(
@@ -2232,6 +2304,8 @@ export async function startJarvisNotch(root: HTMLElement) {
         themeOption("aurora", "Aurora", "Vidro com luz violeta e rosa."),
         themeOption("emerald", "Esmeralda", "Vidro com luz verde e turquesa."),
       ),
+      sectionHead("Temas da época"),
+      renderSeasonSettings(),
       sectionHead("Formato do notch"),
       h(
         "div",
@@ -2970,6 +3044,63 @@ export async function startJarvisNotch(root: HTMLElement) {
       row("jarvisGameMode", "Modo jogo", "Com um jogo aberto, o notch mostra só o FPS e o Jarvis fica sem sons. No fim, um resumo da sessão (tempo, FPS médio e 1% low)."),
       row("jarvisAutoDnd", "Não perturbe automático", "Em tela cheia (jogo, vídeo) ou com o OBS gravando/ao vivo, o Jarvis guarda os avisos do WhatsApp e os lembretes e conta tudo quando acabar."),
       row("jarvisMorningBriefing", "Bom dia", "No primeiro início do dia, o Jarvis fala o clima, seus compromissos e tarefas. Também dá para pedir: “bom dia, Jarvis”."),
+    );
+  }
+
+  /** Ajustes → Notch: seasonal looks (automatic by default) and the birthday. */
+  function renderSeasonSettings(): HTMLElement {
+    const setting = State.settings.jarvisSeason || "auto";
+    const now = currentSeason();
+    const chip = (id: string, label: string) =>
+      h("button", {
+        class: `filter-chip season-chip ${setting === id ? "on" : ""}`,
+        text: label,
+        onclick: async () => {
+          await saveSettings({ ...State.settings, jarvisSeason: id });
+          render();
+        },
+      });
+    const birthday = h("input", {
+      class: "input",
+      style: "width:110px;height:34px",
+      placeholder: "DD/MM",
+      value: State.settings.jarvisBirthday || "",
+    }) as HTMLInputElement;
+    const saveBirthday = async () => {
+      await saveSettings({ ...State.settings, jarvisBirthday: birthday.value.trim() });
+      render();
+    };
+    birthday.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") void saveBirthday();
+    });
+    return h(
+      "div",
+      { class: "tt-card", style: "margin-bottom:8px" },
+      h(
+        "div",
+        { class: "row", style: "gap:6px;flex-wrap:wrap" },
+        chip("auto", "Automático"),
+        chip("off", "Desligado"),
+        ...SEASONS.map((s) => chip(s.id, `${s.emoji} ${s.name}`)),
+      ),
+      h("div", {
+        class: "tt-hint",
+        style: "margin:8px 0 0",
+        text:
+          (setting === "auto"
+            ? now
+              ? `Agora: ${seasonInfo(now).emoji} ${seasonInfo(now).name}. `
+              : "Agora: nenhuma época especial. "
+            : "") +
+          "No automático, o notch ganha luzinhas e enfeites da época e o mascote veste a roupa dela: Natal (dezembro), Ano Novo, Carnaval, Páscoa, Festa Junina, Halloween e o seu aniversário. Escolha uma época para ver como fica (ou manter).",
+      }),
+      h(
+        "div",
+        { class: "row", style: "gap:8px;margin-top:10px;align-items:center" },
+        h("span", { style: "font-size:12.5px", text: "Seu aniversário" }),
+        birthday,
+        h("button", { class: "btn btn-sm", text: "Salvar", onclick: () => void saveBirthday() }),
+      ),
     );
   }
 
@@ -4178,6 +4309,22 @@ export async function startJarvisNotch(root: HTMLElement) {
       }
     }
   });
+
+  // The special day (Natal, Ano Novo, aniversário…): said once, a little after start.
+  window.setTimeout(() => {
+    const now = new Date();
+    const text = seasonGreeting(now, currentSeason(), data.userName || "");
+    if (!text) return;
+    const key = `jv-season-greeted-${now.toDateString()}`;
+    try {
+      if (localStorage.getItem(key)) return;
+      localStorage.setItem(key, "1");
+    } catch {
+      /* no storage: said again next time, nothing worse */
+    }
+    showToast(text, 12000);
+    void Voice.speak(text.replace(/[^\p{L}\p{N}\s,.!?]/gu, "").trim());
+  }, 6000);
 
   // Reminders: Google Agenda notifications and Organizar → Lembretes.
   await onEvent<{ title: string; body: string; alarm?: boolean }>("jarvis-alert", (a) => {

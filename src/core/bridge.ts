@@ -324,6 +324,8 @@ export const Bridge = {
   whatsappState: () => callOrThrow<WaState>("whatsapp_state"),
   /** The first `limit` chats (WhatsApp's list is scrolled to reach them). */
   whatsappChats: (limit?: number, filter?: string) => callOrThrow<{ chats: WaChat[]; more: boolean }>("whatsapp_chats", { limit, filter }),
+  /** The chat list as last read (instant); null before the first read. */
+  whatsappChatsCached: () => call<{ chats: WaChat[]; more: boolean } | null>("whatsapp_chats_cached"),
   /** Chats and contacts matching a search (WhatsApp's own). */
   whatsappSearch: (query: string) => callOrThrow<WaChat[]>("whatsapp_search", { query }),
   /** Plays / pauses a voice note on the PC's speakers: "playing" | "paused". */
