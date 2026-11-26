@@ -266,6 +266,15 @@ if (open) {
 
 // ── Helpers for README screenshots ────────────────────────────────────────────
 const click = (sel: string) => (document.querySelector(sel) as HTMLElement | null)?.click();
+// The liquid glass's light, as if the mouse were there ("glint=520,230").
+const glint = params.get("glint");
+if (glint) {
+  const [gx, gy] = glint.split(",");
+  window.setTimeout(() => {
+    document.documentElement.style.setProperty("--mx", `${gx}px`);
+    document.documentElement.style.setProperty("--my", `${gy}px`);
+  }, 800);
+}
 const sub = params.get("sub");
 if (sub) {
   // A settings / organize sub-tab by its button label ("Notch", "Rotinas"…).

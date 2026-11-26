@@ -179,12 +179,6 @@ html[class*="season-"] .notch-panel::after {
     linear-gradient(100deg, color-mix(in srgb, var(--season-a) 24%, transparent), color-mix(in srgb, var(--season-b) 12%, transparent) 70%),
     rgba(255, 255, 255, 0.02);
 }
-.season-card .season-emoji {
-  font-size: 24px;
-  line-height: 1;
-  animation: season-bob 2.8s ease-in-out infinite;
-}
-@keyframes season-bob { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-3px) rotate(4deg); } }
 .season-card .season-title {
   font-weight: 700;
   font-size: 13.5px;
@@ -215,11 +209,88 @@ html[class*="season-"] .notch-panel::after {
   .season-bulb,
   .season-garland.flags .season-bulb,
   .season-art *,
-  .season-card .season-emoji,
   .season-card::after {
     animation: none !important;
   }
   .season-canvas {
     display: none;
   }
+}
+
+/* ── Ajustes → Temas da época: a card per season ─────────────────────────── */
+.season-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.season-option {
+  text-align: left;
+  padding: 10px;
+}
+.season-option-title {
+  font-weight: 600;
+  font-size: 12.5px;
+  margin-top: 8px;
+}
+.season-option-sub {
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+.season-swatch {
+  position: relative;
+  height: 64px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #15161b;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 6px;
+}
+.season-swatch .season-garland {
+  left: 8px;
+  right: 8px;
+  top: 0;
+  bottom: auto;
+  height: 11px;
+}
+.season-swatch-mochi {
+  position: relative;
+  z-index: 1;
+}
+.sw-natal { background: radial-gradient(90% 120% at 20% 0%, rgba(220, 38, 38, 0.45), transparent 70%), radial-gradient(80% 110% at 100% 100%, rgba(34, 197, 94, 0.35), transparent 70%), #15161b; }
+.sw-anonovo { background: radial-gradient(90% 120% at 30% 0%, rgba(250, 204, 21, 0.4), transparent 70%), radial-gradient(80% 110% at 100% 100%, rgba(96, 165, 250, 0.3), transparent 70%), #15161b; }
+.sw-carnaval { background: radial-gradient(90% 120% at 10% 0%, rgba(168, 85, 247, 0.5), transparent 70%), radial-gradient(80% 110% at 100% 100%, rgba(236, 72, 153, 0.4), transparent 70%), #15161b; }
+.sw-pascoa { background: radial-gradient(90% 120% at 20% 0%, rgba(249, 168, 212, 0.4), transparent 70%), radial-gradient(80% 110% at 100% 100%, rgba(167, 243, 208, 0.32), transparent 70%), #15161b; }
+.sw-junina { background: radial-gradient(90% 120% at 50% 110%, rgba(249, 115, 22, 0.55), transparent 70%), radial-gradient(80% 110% at 0% 0%, rgba(250, 204, 21, 0.2), transparent 70%), #15161b; }
+.sw-halloween { background: radial-gradient(90% 120% at 20% 100%, rgba(249, 115, 22, 0.45), transparent 70%), radial-gradient(80% 110% at 100% 0%, rgba(126, 34, 206, 0.45), transparent 70%), #15161b; }
+.sw-aniversario { background: radial-gradient(90% 120% at 20% 0%, rgba(244, 114, 182, 0.45), transparent 70%), radial-gradient(80% 110% at 100% 100%, rgba(96, 165, 250, 0.35), transparent 70%), #15161b; }
+.sw-off { background: #15161b; }
+.sw-auto:not([class*="sw-natal"]):not([class*="sw-anonovo"]):not([class*="sw-carnaval"]):not([class*="sw-pascoa"]):not([class*="sw-junina"]):not([class*="sw-halloween"]):not([class*="sw-aniversario"]) {
+  background: radial-gradient(90% 120% at 50% 0%, rgba(140, 170, 255, 0.25), transparent 70%), #15161b;
+}
+
+/* The card on Início: a drawn mark that sways a little (once in a while). */
+.season-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45));
+  transform-origin: 50% 100%;
+  animation: season-icon-sway 6s cubic-bezier(0.77, 0, 0.175, 1) infinite;
+}
+.season-icon svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+@keyframes season-icon-sway {
+  0%, 80%, 100% { transform: rotate(0deg); }
+  86% { transform: rotate(-6deg); }
+  93% { transform: rotate(4deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .season-icon { animation: none; }
 }

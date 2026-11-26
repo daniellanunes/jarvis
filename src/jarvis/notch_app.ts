@@ -2,9 +2,13 @@ import "./notch.css";
 import "./notch_v2.css";
 import "./notch_motion.css";
 import "./glass.css";
+import "./liquid.css";
 import "./seasons.css";
-import { SEASONS, activeSeason, seasonGreeting, seasonInfo, type SeasonId } from "./seasons";
-import { attachSeasonCanvas, cornerArt, garland, seasonCountdown } from "./season_fx";
+import "./polish.css";
+import { lineIcon } from "./line_icons";
+import { setLiquidGlass } from "./liquid";
+import { SEASONS, SEASON_WHEN, activeSeason, nextSeason, seasonGreeting, seasonInfo, type SeasonId } from "./seasons";
+import { attachSeasonCanvas, cornerArt, garland, seasonCountdown, seasonIcon } from "./season_fx";
 import {
   Bridge,
   onEvent,
@@ -87,6 +91,8 @@ interface LiveMochi {
   canvas: HTMLCanvasElement;
   engine: BotEngine;
   size: number;
+  /** A preview that keeps its own outfit (the season picker's cards). */
+  ownOutfit?: Outfit;
 }
 
 const liveMochis = new Map<HTMLCanvasElement, LiveMochi>();
@@ -96,6 +102,7 @@ function createDressedMochi(
   colorHex: string,
   outfit: Outfit,
   state: "idle" | "working" | "thinking" = "idle",
+  keepOutfit = false,
 ): HTMLElement {
   const slot = document.createElement("span");
   slot.style.width = `${bodySize}px`;
@@ -121,8 +128,56 @@ function createDressedMochi(
   engine.setState(state, true);
   engine.setOutfit(outfit, false);
 
-  liveMochis.set(canvas, { canvas, engine, size: engineSize });
+  liveMochis.set(canvas, { canvas, engine, size: engineSize, ownOutfit: keepOutfit ? outfit : undefined });
+  // A press on Mochi is felt: a quick squash (feedback, nothing more).
+  slot.addEventListener("pointerdown", () => engine.squash());
   return slot;
+}
+
+/**
+ * The season's moment, on every Mochi on screen: a wave and the season's
+ * touch (snow, confetti, stars, hearts). Rare by design: the special day's
+ * greeting, or choosing a season in Ajustes to see it.
+ */
+function seasonMoment(season: SeasonId) {
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+    for (const m of liveMochis.values()) m.engine.triggerEmote("happy", 1.2);
+    return;
+  }
+  for (const m of liveMochis.values()) {
+    const e = m.engine;
+    switch (season) {
+      case "natal":
+        e.greet();
+        e.triggerEmote("happy", 1.6);
+        e.emitSeason("snow", 10);
+        break;
+      case "anonovo":
+        e.triggerEmote("proud", 1.8);
+        e.emitSeason("confetti", 12, ["#facc15", "#fde68a", "#ffffff", "#f472b6"]);
+        break;
+      case "carnaval":
+        e.squash();
+        e.emitSeason("confetti", 14, ["#ec4899", "#a855f7", "#facc15", "#22c55e", "#38bdf8"]);
+        break;
+      case "pascoa":
+        e.triggerEmote("love", 1.6);
+        break;
+      case "junina":
+        e.greet();
+        e.emitSeason("confetti", 10, ["#ef4444", "#facc15", "#22c55e", "#3b82f6", "#f97316"]);
+        break;
+      case "halloween":
+        e.triggerEmote("surprised", 1.2);
+        e.emit("spark", 4);
+        break;
+      case "aniversario":
+        e.greet();
+        e.triggerEmote("proud", 2);
+        e.emitSeason("confetti", 16);
+        break;
+    }
+  }
 }
 
 function pruneDressedMochis() {
@@ -138,8 +193,8 @@ function tickDressedMochis(dt: number, colorHex: string, outfit: Outfit, state: 
     if (!ctx) continue;
     m.engine.bodyColor = hexToRGB(colorHex || "#f4f4f5");
     m.engine.bodyFinish = mochiFinish;
-    m.engine.setOutfit(outfit, true);
-    m.engine.setState(state);
+    m.engine.setOutfit(m.ownOutfit ?? outfit, true);
+    m.engine.setState(m.ownOutfit ? "idle" : state);
     m.engine.update(dt);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, m.size, m.size);
@@ -712,8 +767,9 @@ export async function startJarvisNotch(root: HTMLElement) {
   function applyTheme() {
     const t = State.settings.jarvisTheme || "graphite";
     const cl = document.documentElement.classList;
-    cl.toggle("glass", ["glass", "midnight", "aurora", "emerald"].includes(t));
-    for (const v of ["midnight", "aurora", "emerald"]) cl.toggle(v, t === v);
+    cl.toggle("glass", ["glass", "midnight", "aurora", "emerald", "liquid"].includes(t));
+    for (const v of ["midnight", "aurora", "emerald", "liquid"]) cl.toggle(v, t === v);
+    setLiquidGlass(t === "liquid");
     const shape = State.settings.jarvisNotchShape || "notch";
     cl.toggle("shape-island", shape === "island");
     cl.toggle("shape-tab", shape === "tab");
@@ -1074,6 +1130,7 @@ export async function startJarvisNotch(root: HTMLElement) {
           "div",
           { class: "list-row" },
           h("span", { class: "list-time", text: r.time }),
+          h("i", { class: "ag-bar sm placeholder", "aria-hidden": "true" }),
           h("span", { class: "list-text", text: r.title }),
         ),
       );
@@ -1105,7 +1162,7 @@ export async function startJarvisNotch(root: HTMLElement) {
         ),
       );
     }
-    if (!recent.length) activity.append(h("div", { class: "empty", text: "Nenhuma conversa ainda." }));
+    if (!recent.length) activity.append(h("div", { class: "empty", text: "Nenhuma conversa ainda. Diga “Jarvis” ou escreva no campo acima." }));
 
     const projects = data.memories.filter((m) => m.category === "project").slice(0, 4);
     const projList = h("div", { class: "list" });
@@ -1139,7 +1196,7 @@ export async function startJarvisNotch(root: HTMLElement) {
           return h(
             "div",
             { class: "season-card" },
-            h("span", { class: "season-emoji", text: info.emoji }),
+            seasonIcon(season, 38),
             h(
               "div",
               {},
@@ -2303,6 +2360,7 @@ export async function startJarvisNotch(root: HTMLElement) {
         themeOption("midnight", "Meia-noite", "O mesmo vidro em tons de azul profundo."),
         themeOption("aurora", "Aurora", "Vidro com luz violeta e rosa."),
         themeOption("emerald", "Esmeralda", "Vidro com luz verde e turquesa."),
+        themeOption("liquid", "Vidro Líquido", "Vidro que entorta a luz atrás dele, com brilho nas bordas que segue o mouse — no estilo do Liquid Glass."),
       ),
       sectionHead("Temas da época"),
       renderSeasonSettings(),
@@ -3050,21 +3108,68 @@ export async function startJarvisNotch(root: HTMLElement) {
   /** Ajustes → Notch: seasonal looks (automatic by default) and the birthday. */
   function renderSeasonSettings(): HTMLElement {
     const setting = State.settings.jarvisSeason || "auto";
-    const now = currentSeason();
-    const chip = (id: string, label: string) =>
-      h("button", {
-        class: `filter-chip season-chip ${setting === id ? "on" : ""}`,
-        text: label,
-        onclick: async () => {
-          await saveSettings({ ...State.settings, jarvisSeason: id });
-          render();
+    const now = new Date();
+    const current = currentSeason();
+    const choose = async (id: string) => {
+      await saveSettings({ ...State.settings, jarvisSeason: id });
+      render();
+      // Choosing a season shows it: the mascot does its moment.
+      const shown = activeSeason(id, new Date(), State.settings.jarvisBirthday);
+      if (shown) window.setTimeout(() => seasonMoment(shown), 250);
+    };
+
+    // "Automático": what is on now, or how long until the next one.
+    const auto = State.settings.jarvisSeason === "off" ? null : activeSeason("auto", now, State.settings.jarvisBirthday);
+    const upcoming = nextSeason(now, State.settings.jarvisBirthday);
+    const autoLine = auto
+      ? `Agora: ${seasonInfo(auto).name}`
+      : upcoming
+        ? `Próxima: ${seasonInfo(upcoming.id).name}, em ${upcoming.days} ${upcoming.days === 1 ? "dia" : "dias"}`
+        : "Segue o calendário";
+
+    const option = (id: string, title: string, sub: string, preview: HTMLElement) =>
+      h(
+        "button",
+        {
+          class: `brain-card season-option ${setting === id ? "selected" : ""}`,
+          "aria-pressed": String(setting === id),
+          onclick: () => void choose(id),
         },
-      });
+        preview,
+        h("div", { class: "season-option-title", text: title }),
+        h("div", { class: "season-option-sub", text: sub }),
+      );
+
+    const seasonPreview = (id: SeasonId) => {
+      const box = h("div", { class: `season-swatch sw-${id}` });
+      box.append(garland(id));
+      const mochi = createDressedMochi(26, data.mochiColor || "#f4f4f5", seasonInfo(id).outfit, "idle", true);
+      mochi.classList.add("season-swatch-mochi");
+      box.append(mochi);
+      return box;
+    };
+    const autoPreview = () => {
+      const box = h("div", { class: `season-swatch sw-auto ${current ? `sw-${current}` : ""}` });
+      if (current) box.append(garland(current));
+      const mochi = createDressedMochi(26, data.mochiColor || "#f4f4f5", currentOutfit(), "idle");
+      mochi.classList.add("season-swatch-mochi");
+      box.append(mochi);
+      return box;
+    };
+    const offPreview = () => {
+      const box = h("div", { class: "season-swatch sw-off" });
+      const mochi = createDressedMochi(26, data.mochiColor || "#f4f4f5", (data.mochiOutfit as Outfit) || "none", "idle", true);
+      mochi.classList.add("season-swatch-mochi");
+      box.append(mochi);
+      return box;
+    };
+
     const birthday = h("input", {
       class: "input",
       style: "width:110px;height:34px",
       placeholder: "DD/MM",
       value: State.settings.jarvisBirthday || "",
+      "aria-label": "Seu aniversário (dia/mês)",
     }) as HTMLInputElement;
     const saveBirthday = async () => {
       await saveSettings({ ...State.settings, jarvisBirthday: birthday.value.trim() });
@@ -3073,30 +3178,27 @@ export async function startJarvisNotch(root: HTMLElement) {
     birthday.addEventListener("keydown", (e) => {
       if (e.key === "Enter") void saveBirthday();
     });
+
     return h(
       "div",
-      { class: "tt-card", style: "margin-bottom:8px" },
+      {},
       h(
         "div",
-        { class: "row", style: "gap:6px;flex-wrap:wrap" },
-        chip("auto", "Automático"),
-        chip("off", "Desligado"),
-        ...SEASONS.map((s) => chip(s.id, `${s.emoji} ${s.name}`)),
+        { class: "season-grid" },
+        option("auto", "Automático", autoLine, autoPreview()),
+        ...SEASONS.map((s) =>
+          option(s.id, s.name, s.id === "aniversario" && State.settings.jarvisBirthday ? `Dia ${State.settings.jarvisBirthday}` : SEASON_WHEN[s.id], seasonPreview(s.id)),
+        ),
+        option("off", "Desligado", "Sempre o visual e a roupa que você escolheu", offPreview()),
       ),
       h("div", {
         class: "tt-hint",
-        style: "margin:8px 0 0",
-        text:
-          (setting === "auto"
-            ? now
-              ? `Agora: ${seasonInfo(now).emoji} ${seasonInfo(now).name}. `
-              : "Agora: nenhuma época especial. "
-            : "") +
-          "No automático, o notch ganha luzinhas e enfeites da época e o mascote veste a roupa dela: Natal (dezembro), Ano Novo, Carnaval, Páscoa, Festa Junina, Halloween e o seu aniversário. Escolha uma época para ver como fica (ou manter).",
+        style: "margin:10px 0 0",
+        text: "No automático, o notch ganha a guirlanda, as animações e os enfeites da época, e o mascote veste a roupa dela. Escolha uma época para ver como fica (ou para manter).",
       }),
       h(
         "div",
-        { class: "row", style: "gap:8px;margin-top:10px;align-items:center" },
+        { class: "row", style: "gap:8px;margin-top:12px;align-items:center" },
         h("span", { style: "font-size:12.5px", text: "Seu aniversário" }),
         birthday,
         h("button", { class: "btn btn-sm", text: "Salvar", onclick: () => void saveBirthday() }),
@@ -3874,15 +3976,15 @@ export async function startJarvisNotch(root: HTMLElement) {
             })
             .catch(() => {});
         };
-        const round = (text: string, action: string, cls: string, title: string) =>
-          h("button", { class: `call-pill-btn ${cls}`, text, title, onclick: act(action) });
+        const round = (icon: HTMLElement, action: string, cls: string, title: string) =>
+          h("button", { class: `call-pill-btn ${cls}`, title, "aria-label": title, onclick: act(action) }, icon);
         const callBar = h(
           "div",
           { class: `notch-voice-bar call-pill ${c.state}` },
           h(
             "div",
             { class: "notch-pill-left", onclick: () => setExpanded(true, "whatsapp"), style: "cursor:pointer;flex:1" },
-            h("div", { class: "call-pill-icon", text: "✆" }),
+            h("div", { class: "call-pill-icon" }, lineIcon("phone", 14)),
             h(
               "div",
               { class: "notch-status-copy" },
@@ -3894,8 +3996,11 @@ export async function startJarvisNotch(root: HTMLElement) {
             "div",
             { class: "notch-pill-right call-pill-actions" },
             ...(c.state === "incoming"
-              ? [round("✕", "decline", "decline", "Recusar"), round("✆", "accept", "accept", "Atender")]
-              : [round(c.micOff ? "🔇" : "🎙", "mute", c.micOff ? "on" : "", c.micOff ? "Ativar microfone" : "Silenciar"), round("✆", "hangup", "hangup", "Desligar")]),
+              ? [round(lineIcon("phoneOff", 15), "decline", "decline", "Recusar"), round(lineIcon("phone", 15), "accept", "accept", "Atender")]
+              : [
+                  round(lineIcon(c.micOff ? "micOff" : "mic", 15), "mute", c.micOff ? "on" : "", c.micOff ? "Ativar microfone" : "Silenciar"),
+                  round(lineIcon("phoneOff", 15), "hangup", "hangup", "Desligar"),
+                ]),
           ),
         );
         if (animatePill) {
@@ -4323,6 +4428,8 @@ export async function startJarvisNotch(root: HTMLElement) {
       /* no storage: said again next time, nothing worse */
     }
     showToast(text, 12000);
+    const s = currentSeason();
+    if (s) window.setTimeout(() => seasonMoment(s), 400);
     void Voice.speak(text.replace(/[^\p{L}\p{N}\s,.!?]/gu, "").trim());
   }, 6000);
 

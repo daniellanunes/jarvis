@@ -1,0 +1,84 @@
+/* Polish pass (any visual): the parts the browser draws by default, aligned
+   numbers, and the line icons (line_icons.ts). Loaded after the themes. */
+
+/* ── Browser surfaces ────────────────────────────────────────────────────── */
+::selection {
+  background: rgba(140, 170, 255, 0.35);
+  color: #fff;
+}
+input,
+textarea,
+[contenteditable="true"] {
+  caret-color: #a9c0ff;
+}
+/* Keyboard focus only: a clear ring that follows the control's own shape. */
+/* Fields keep their own focus style (their border lights up). */
+:where(button, a, select, [role="button"], [tabindex]:not(input):not(textarea)):focus-visible {
+  outline: 2px solid rgba(160, 185, 255, 0.85);
+  outline-offset: 2px;
+}
+:where(button, a, [role="button"]):focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Times and counts in columns don't jump as the digits change. */
+.notch-clock,
+.list-time,
+.wa-when,
+.wa-row-time,
+.wa-call-sub,
+.call-pill .notch-pill-sub,
+.nav-badge,
+.ag-time,
+.list-row .list-time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── The active nav item is marked by its fill; no extra bar on its side ── */
+.nav-item.active::before {
+  display: none;
+}
+
+/* ── Line icons inside the existing round / icon buttons ─────────────────── */
+.line-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+.line-icon svg {
+  display: block;
+}
+.wa-icon-btn,
+.wa-round-btn,
+.wa-call-btn,
+.call-pill-btn,
+.wa-play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.wa-search-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-3);
+}
+/* Media placeholders: icon and label on one baseline. */
+.wa-media {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.wa-media .line-icon {
+  color: var(--text-2);
+}
+.call-pill-icon .line-icon {
+  color: inherit;
+}
+
+/* ── Today on Início: every title starts at the same x ────────────────────── */
+.list-row .ag-bar.placeholder {
+  background: transparent !important;
+}

@@ -25,6 +25,28 @@ export const SEASONS: SeasonInfo[] = [
   { id: "aniversario", name: "Aniversário", emoji: "🎂", outfit: "partyHat" },
 ];
 
+/** When it happens, as the picker says it. */
+export const SEASON_WHEN: Record<SeasonId, string> = {
+  natal: "1 a 26 de dezembro",
+  anonovo: "27 de dezembro a 2 de janeiro",
+  carnaval: "Sábado a Quarta de Cinzas",
+  pascoa: "Sexta Santa a segunda",
+  junina: "Junho inteiro",
+  halloween: "25 a 31 de outubro",
+  aniversario: "No seu dia",
+};
+
+/** The next season from `date` (today's counts), and in how many days. */
+export function nextSeason(date: Date, birthday?: string): { id: SeasonId; days: number } | null {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
+  for (let i = 0; i <= 370; i++) {
+    const id = seasonOn(d, birthday);
+    if (id) return { id, days: i };
+    d.setDate(d.getDate() + 1);
+  }
+  return null;
+}
+
 export function seasonInfo(id: SeasonId): SeasonInfo {
   return SEASONS.find((s) => s.id === id) ?? SEASONS[0];
 }

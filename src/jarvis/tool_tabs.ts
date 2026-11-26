@@ -14,6 +14,7 @@ import {
   type WaThread,
   type WaCall,
 } from "../core/bridge";
+import { lineIcon } from "./line_icons";
 import { Sound } from "../core/sound";
 import { clear, h } from "../views/dom";
 
@@ -511,8 +512,8 @@ export function createToolTabs(ctx: ToolTabsCtx) {
   function callBar(): HTMLElement | string {
     const c = call;
     if (!c) return "";
-    const btn = (text: string, action: string, cls = "btn btn-ghost btn-sm", title = text) =>
-      h("button", { class: cls, text, title, onclick: () => void callAction(action) });
+    const btn = (content: string | HTMLElement, action: string, cls = "btn btn-ghost btn-sm", title = typeof content === "string" ? content : "") =>
+      h("button", { class: cls, title, "aria-label": title, onclick: () => void callAction(action) }, content);
     return h(
       "div",
       { class: `wa-call ${c.state}` },
@@ -528,10 +529,10 @@ export function createToolTabs(ctx: ToolTabsCtx) {
         : h(
             "div",
             { class: "wa-call-actions" },
-            btn(c.micOff ? "🔇" : "🎙", "mute", `wa-call-btn ${c.micOff ? "on" : ""}`, c.micOff ? "Ativar microfone" : "Silenciar microfone"),
-            btn("📷", "camera", `wa-call-btn ${c.camOff ? "" : "on"}`, c.camOff ? "Ligar câmera" : "Desligar câmera"),
-            btn("⧉", "show", "wa-call-btn", "Ver a janela da chamada"),
-            btn("✆", "hangup", "wa-call-btn wa-hangup", "Desligar"),
+            btn(lineIcon(c.micOff ? "micOff" : "mic", 17), "mute", `wa-call-btn ${c.micOff ? "on" : ""}`, c.micOff ? "Ativar microfone" : "Silenciar microfone"),
+            btn(lineIcon(c.camOff ? "videoOff" : "video", 17), "camera", `wa-call-btn ${c.camOff ? "" : "on"}`, c.camOff ? "Ligar câmera" : "Desligar câmera"),
+            btn(lineIcon("window", 16), "show", "wa-call-btn", "Ver a janela da chamada"),
+            btn(lineIcon("phoneOff", 17), "hangup", "wa-call-btn wa-hangup", "Desligar"),
           ),
     );
   }
@@ -697,7 +698,7 @@ export function createToolTabs(ctx: ToolTabsCtx) {
       body = h(
         "div",
         { class: "wa-media" },
-        h("button", { class: "wa-play", text: playing ? "❚❚" : "▶", title: playing ? "Pausar" : "Ouvir", onclick: () => void waPlay(t.title, m.id) }),
+        h("button", { class: "wa-play", title: playing ? "Pausar" : "Ouvir", "aria-label": playing ? "Pausar" : "Ouvir", onclick: () => void waPlay(t.title, m.id) }, lineIcon(playing ? "pause" : "play", 15)),
         h("span", { text: `Áudio${m.duration ? ` · ${m.duration}` : ""}` }),
       );
     } else if (m.kind === "image") {
@@ -725,11 +726,11 @@ export function createToolTabs(ctx: ToolTabsCtx) {
         : h(
             "div",
             { class: "wa-media" },
-            h("span", { text: "🖼 Imagem" }),
+            h("span", { class: "wa-media" }, lineIcon("image", 15), "Imagem"),
             h("button", { class: "link-btn", text: wa.imageLoading === m.id ? "carregando…" : "Ver", onclick: () => (wa.imageFailed.delete(key), void waShowImage(t.title, m.id)) }),
           );
-    } else if (m.kind === "video") body = h("div", { class: "wa-media", text: "🎬 Vídeo (abra no celular)" });
-    else if (m.kind === "document") body = h("div", { class: "wa-media", text: "📎 Documento" });
+    } else if (m.kind === "video") body = h("div", { class: "wa-media" }, lineIcon("film", 15), "Vídeo (abra no celular)");
+    else if (m.kind === "document") body = h("div", { class: "wa-media" }, lineIcon("paperclip", 15), "Documento");
     else if (m.kind === "sticker") body = h("div", { class: "wa-media", text: "Figurinha" });
     else body = "";
     return h(
@@ -889,7 +890,7 @@ export function createToolTabs(ctx: ToolTabsCtx) {
     if (wa.chats == null && !wa.loading && !wa.busy) void waLoadChats();
 
     // ── Left: search, filters, chats, the call bar ──
-    const search = h("input", { class: "wa-search-input", placeholder: "Pesquisar ou começar uma nova conversa", value: wa.query }) as HTMLInputElement;
+    const search = h("input", { class: "wa-search-input", placeholder: "Pesquisar conversa ou contato", value: wa.query }) as HTMLInputElement;
     search.addEventListener("keydown", (e) => {
       if (e.key === "Enter") void waSearch(search.value);
       if (e.key === "Escape") void waSearch("");
@@ -925,16 +926,16 @@ export function createToolTabs(ctx: ToolTabsCtx) {
         h(
           "div",
           { style: "display:flex;gap:2px" },
-          h("button", { class: "wa-icon-btn", text: "⧉", title: "Abrir o WhatsApp completo numa janela", onclick: () => void callAction("show") }),
-          h("button", { class: "wa-icon-btn", text: "⟳", title: "Atualizar", onclick: () => void waLoadChats() }),
+          h("button", { class: "wa-icon-btn", title: "Abrir o WhatsApp completo numa janela", "aria-label": "Abrir o WhatsApp completo numa janela", onclick: () => void callAction("show") }, lineIcon("window", 16)),
+          h("button", { class: "wa-icon-btn", title: "Atualizar", "aria-label": "Atualizar", onclick: () => void waLoadChats() }, lineIcon("refresh", 16)),
         ),
       ),
       h(
         "div",
         { class: "wa-search" },
-        h("span", { class: "wa-search-icon", text: "⌕" }),
+        h("span", { class: "wa-search-icon" }, lineIcon("search", 15)),
         search,
-        wa.query ? h("button", { class: "wa-icon-btn", text: "✕", title: "Limpar", onclick: () => void waSearch("") }) : "",
+        wa.query ? h("button", { class: "wa-icon-btn", title: "Limpar busca", "aria-label": "Limpar busca", onclick: () => void waSearch("") }, lineIcon("x", 15)) : "",
       ),
       h(
         "div",
@@ -970,16 +971,24 @@ export function createToolTabs(ctx: ToolTabsCtx) {
     } else {
       const input = h("input", { class: "wa-compose-input", placeholder: "Digite uma mensagem", value: wa.draft }) as HTMLInputElement;
       const sendOrMic = () => (wa.draft.trim() ? "send" : "mic");
-      const action = h("button", {
-        class: "wa-round-btn",
-        text: sendOrMic() === "send" ? "➤" : "🎙",
-        title: sendOrMic() === "send" ? "Enviar" : "Gravar áudio",
-        onclick: () => (wa.draft.trim() ? void waSend() : void waVoice("start")),
-      });
+      const action = h(
+        "button",
+        {
+          class: "wa-round-btn",
+          title: sendOrMic() === "send" ? "Enviar" : "Gravar áudio",
+          "aria-label": sendOrMic() === "send" ? "Enviar" : "Gravar áudio",
+          onclick: () => (wa.draft.trim() ? void waSend() : void waVoice("start")),
+        },
+        lineIcon(sendOrMic() === "send" ? "send" : "mic", 18),
+      );
       input.addEventListener("input", () => {
         wa.draft = input.value;
-        action.textContent = sendOrMic() === "send" ? "➤" : "🎙";
-        action.title = sendOrMic() === "send" ? "Enviar" : "Gravar áudio";
+        const label = sendOrMic() === "send" ? "Enviar" : "Gravar áudio";
+        if (action.title !== label) {
+          action.replaceChildren(lineIcon(sendOrMic() === "send" ? "send" : "mic", 18));
+          action.title = label;
+          action.setAttribute("aria-label", label);
+        }
       });
       input.addEventListener("keydown", (e) => {
         if (e.key === "Enter") void waSend();
@@ -1010,8 +1019,8 @@ export function createToolTabs(ctx: ToolTabsCtx) {
           { class: "wa-pane-head" },
           avatar(t.title, t.avatar, 36),
           h("div", { class: "wa-pane-name", text: t.title }),
-          h("button", { class: "wa-icon-btn", text: "🎥", title: "Chamada de vídeo", onclick: () => void waCall(t.title, true) }),
-          h("button", { class: "wa-icon-btn", text: "📞", title: "Ligar", onclick: () => void waCall(t.title, false) }),
+          h("button", { class: "wa-icon-btn", title: "Chamada de vídeo", "aria-label": "Chamada de vídeo", onclick: () => void waCall(t.title, true) }, lineIcon("video", 18)),
+          h("button", { class: "wa-icon-btn", title: "Ligar", "aria-label": "Ligar", onclick: () => void waCall(t.title, false) }, lineIcon("phone", 17)),
         ),
         msgs,
         wa.error ? h("div", { class: "wa-error", text: wa.error }) : "",
@@ -1022,7 +1031,7 @@ export function createToolTabs(ctx: ToolTabsCtx) {
               h("span", { class: "wa-rec-dot" }),
               h("span", { style: "flex:1", text: "Gravando áudio… fale no microfone" }),
               h("button", { class: "btn btn-ghost btn-sm", text: "Cancelar", onclick: () => void waVoice("cancel") }),
-              h("button", { class: "wa-round-btn", text: "➤", title: "Enviar áudio", onclick: () => void waVoice("send") }),
+              h("button", { class: "wa-round-btn", title: "Enviar áudio", "aria-label": "Enviar áudio", onclick: () => void waVoice("send") }, lineIcon("send", 18)),
             )
           : h("div", { class: "wa-compose" }, input, action),
       );

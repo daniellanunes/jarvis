@@ -53,3 +53,11 @@ test("the setting: auto, off, or a season by hand", () => {
   assert.equal(activeSeason("halloween", day(2026, 3, 3)), "halloween");
   assert.equal(activeSeason("qualquer", day(2026, 3, 3)), null);
 });
+
+test("the next season and how far it is", async () => {
+  const { nextSeason } = await import("../src/jarvis/seasons.ts");
+  assert.deepEqual(nextSeason(day(2026, 11, 26)), { id: "natal", days: 5 });
+  assert.deepEqual(nextSeason(day(2026, 12, 10)), { id: "natal", days: 0 });
+  assert.deepEqual(nextSeason(day(2026, 11, 26), "28/11"), { id: "aniversario", days: 2 });
+  assert.equal(nextSeason(day(2027, 1, 5)).id, "carnaval");
+});

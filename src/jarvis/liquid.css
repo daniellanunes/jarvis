@@ -1,0 +1,244 @@
+/* Jarvis — "Vidro Líquido" (Ajustes → Notch → Visual), after Apple's Liquid
+   Glass. On top of the glass theme: `html.glass.liquid`.
+
+   What makes it liquid:
+   - a living, colourful backdrop inside the panel (slowly drifting light),
+     so the glass has something to bend;
+   - real refraction where nothing scrolls (sidebar, active item, the prompt
+     bar's frame): Chromium applies an SVG displacement filter to what lies
+     behind (`backdrop-filter: url(#jv-liquid)`, defined in liquid.ts);
+   - a specular rim that lights up where the mouse is (--mx / --my, in
+     viewport coordinates: the light layer is `fixed`), brighter on the top
+     and bottom edges like thick glass;
+   - a faint rainbow at the edges (the colour fringe of a lens).
+   The pill hangs over the desktop, which a page cannot see: it gets the rim,
+   the specular light and the clear dark body, not the refraction. */
+
+html.glass.liquid {
+  --bg: #0a0d18;
+  --glass-tint-a: 120, 170, 255;
+  --glass-tint-b: 255, 160, 210;
+  --mx: 50vw;
+  --my: -200px;
+  --liquid-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.13) 0%, rgba(255, 255, 255, 0.05) 45%, rgba(255, 255, 255, 0.08) 100%);
+  /* The light near the mouse, on the rims (fixed = viewport coordinates). */
+  --liquid-glint: radial-gradient(240px circle at var(--mx) var(--my), rgba(255, 255, 255, 1), rgba(255, 255, 255, 0.35) 40%, rgba(255, 255, 255, 0.16) 70%);
+  --liquid-glow: radial-gradient(280px circle at var(--mx) var(--my), rgba(255, 255, 255, 0.14), transparent 70%);
+  --liquid-edge:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.28),
+    inset 1.5px 0 1px -1px rgba(120, 200, 255, 0.35),
+    inset -1.5px 0 1px -1px rgba(255, 140, 200, 0.35),
+    inset 0 8px 14px -10px rgba(255, 255, 255, 0.35),
+    inset 0 -10px 16px -12px rgba(255, 255, 255, 0.25);
+}
+
+/* ── The living backdrop inside the panel ───────────────────────────────── */
+html.glass.liquid .notch-panel {
+  background-color: #0a0d18;
+  background-image: none;
+  isolation: isolate;
+  /* The drifting light stays inside the panel (never over the desktop): the
+     panel is its containing block, and clips it. */
+  position: relative;
+  overflow: hidden;
+}
+html.glass.liquid .notch-panel::before {
+  content: "";
+  position: absolute;
+  inset: -8%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    /* Soft light ribbons: detail for the glass to bend. */
+    repeating-linear-gradient(115deg, rgba(255, 255, 255, 0) 0 46px, rgba(255, 255, 255, 0.045) 46px 50px, rgba(255, 255, 255, 0) 50px 96px),
+    repeating-linear-gradient(25deg, rgba(255, 255, 255, 0) 0 80px, rgba(180, 200, 255, 0.035) 80px 84px, rgba(255, 255, 255, 0) 84px 160px),
+    radial-gradient(30% 38% at 14% 18%, rgba(59, 130, 246, 0.7), transparent 70%),
+    radial-gradient(28% 34% at 80% 14%, rgba(168, 85, 247, 0.6), transparent 70%),
+    radial-gradient(32% 38% at 66% 82%, rgba(249, 115, 22, 0.45), transparent 70%),
+    radial-gradient(28% 32% at 20% 84%, rgba(20, 184, 166, 0.55), transparent 70%),
+    radial-gradient(22% 26% at 46% 48%, rgba(236, 72, 153, 0.3), transparent 70%);
+  filter: blur(6px) saturate(1.3);
+  animation: liquid-drift 38s ease-in-out infinite alternate;
+}
+@keyframes liquid-drift {
+  0% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
+  50% { transform: translate3d(4%, -3%, 0) rotate(6deg) scale(1.06); }
+  100% { transform: translate3d(-3%, 4%, 0) rotate(-5deg) scale(1.02); }
+}
+html.glass.liquid .notch-panel > .sidebar,
+html.glass.liquid .notch-panel > .main {
+  position: relative;
+  z-index: 1;
+}
+html.glass.liquid .main {
+  background-color: transparent;
+}
+
+/* ── Glass with refraction (where nothing scrolls) ──────────────────────── */
+html.glass.liquid .sidebar {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03));
+  backdrop-filter: blur(16px) saturate(1.7) url(#jv-liquid);
+  border-right: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.06), inset 0 1.5px 0 rgba(255, 255, 255, 0.35);
+}
+html.glass.liquid .nav-item.active {
+  border: 1px solid transparent;
+  background:
+    var(--liquid-fill) padding-box,
+    var(--liquid-glint) border-box fixed;
+  backdrop-filter: blur(6px) saturate(1.8) url(#jv-liquid-strong);
+  box-shadow: var(--liquid-edge), 0 10px 26px -12px rgba(0, 0, 0, 0.6);
+}
+html.glass.liquid .nav-item:hover:not(.active) {
+  background: var(--liquid-glow) fixed, rgba(255, 255, 255, 0.05);
+}
+
+/* ── Surfaces in the scrolling area: clear glass, lit rim, no blur (the
+   scroll stays smooth) ────────────────────────────────────────────────── */
+html.glass.liquid .card,
+html.glass.liquid .tt-card,
+html.glass.liquid .stat-tile,
+html.glass.liquid .mini-chat-card,
+html.glass.liquid .update-card,
+html.glass.liquid .brain-card,
+html.glass.liquid .season-card {
+  border: 1px solid transparent;
+  background:
+    var(--liquid-glow) padding-box fixed,
+    var(--liquid-fill) padding-box,
+    rgba(10, 13, 24, 0.38) padding-box,
+    var(--liquid-glint) border-box fixed;
+  box-shadow: var(--liquid-edge), 0 14px 34px -18px rgba(0, 0, 0, 0.7);
+}
+/* The chosen option (a visual, a shape, an AI) keeps a clear bright rim. */
+html.glass.liquid .brain-card.selected {
+  background:
+    var(--liquid-glow) padding-box fixed,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.08)) padding-box,
+    rgba(10, 13, 24, 0.3) padding-box,
+    linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(160, 200, 255, 0.7) 50%, rgba(255, 180, 220, 0.8)) border-box;
+  box-shadow: var(--liquid-edge), 0 0 0 1px rgba(255, 255, 255, 0.35), 0 14px 34px -14px rgba(120, 170, 255, 0.55);
+}
+html.glass.liquid .season-card {
+  background:
+    var(--liquid-glow) padding-box fixed,
+    linear-gradient(100deg, color-mix(in srgb, var(--season-a, #fff) 24%, transparent), transparent 70%) padding-box,
+    var(--liquid-fill) padding-box,
+    var(--liquid-glint) border-box fixed;
+}
+html.glass.liquid .prompt-bar,
+html.glass.liquid .input {
+  border: 1px solid transparent;
+  background:
+    var(--liquid-fill) padding-box,
+    rgba(10, 13, 24, 0.45) padding-box,
+    var(--liquid-glint) border-box fixed;
+  box-shadow: var(--liquid-edge);
+}
+html.glass.liquid .prompt-bar:focus-within,
+html.glass.liquid .input:focus {
+  box-shadow: var(--liquid-edge), 0 0 0 3px rgba(120, 170, 255, 0.25);
+}
+
+/* Buttons and chips: little drops of glass that swell a bit. */
+html.glass.liquid .btn,
+html.glass.liquid .filter-chip,
+html.glass.liquid .tt-chip,
+html.glass.liquid .agent-chip,
+html.glass.liquid .outfit-chip,
+html.glass.liquid .circle-btn {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.06) 55%, rgba(255, 255, 255, 0.1)) padding-box,
+    var(--liquid-glint) border-box fixed;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -1px 0 rgba(255, 255, 255, 0.18), 0 6px 16px -10px rgba(0, 0, 0, 0.7);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+}
+html.glass.liquid .btn:hover,
+html.glass.liquid .filter-chip:hover,
+html.glass.liquid .tt-chip:hover,
+html.glass.liquid .outfit-chip:hover,
+html.glass.liquid .circle-btn:hover {
+  transform: scale(1.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -1px 0 rgba(255, 255, 255, 0.25), 0 10px 22px -10px rgba(0, 0, 0, 0.75);
+}
+html.glass.liquid .btn:active,
+html.glass.liquid .circle-btn:active {
+  transform: scale(0.97);
+}
+html.glass.liquid .filter-chip.on,
+html.glass.liquid .tt-chip.on,
+html.glass.liquid .outfit-chip.on,
+html.glass.liquid .agent-chip.on {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.14) 55%, rgba(255, 255, 255, 0.22)) padding-box,
+    var(--liquid-glint) border-box fixed;
+}
+/* The white call-to-action buttons stay white, with a glassy shine. */
+html.glass.liquid .circle-btn.primary,
+html.glass.liquid .play-circle {
+  background:
+    linear-gradient(180deg, #ffffff, #e6eaf2) padding-box,
+    var(--liquid-glint) border-box fixed;
+}
+
+/* ── The pill: clear dark glass, lit rim, the light following the mouse ── */
+html.glass.liquid .notch-pill,
+html.glass.liquid .notch-voice-bar {
+  border: 1px solid transparent;
+  border-top: none;
+  background:
+    var(--liquid-glow) padding-box fixed,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.0) 40%, rgba(255, 255, 255, 0.12) 100%) padding-box,
+    radial-gradient(80% 140% at 0% 120%, rgba(120, 170, 255, 0.3), transparent 60%) padding-box,
+    radial-gradient(80% 140% at 100% 120%, rgba(255, 160, 210, 0.24), transparent 60%) padding-box,
+    rgba(12, 14, 22, 0.8) padding-box,
+    var(--liquid-glint) border-box fixed;
+  box-shadow:
+    inset 0 -1.5px 0 rgba(255, 255, 255, 0.6),
+    inset 1.5px 0 1px -1px rgba(120, 200, 255, 0.45),
+    inset -1.5px 0 1px -1px rgba(255, 140, 200, 0.45),
+    inset 0 -12px 18px -14px rgba(255, 255, 255, 0.45),
+    inset 0 0 16px rgba(255, 255, 255, 0.05) !important;
+}
+html.glass.liquid .notch-pill:hover {
+  background:
+    var(--liquid-glow) padding-box fixed,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.0) 40%, rgba(255, 255, 255, 0.16) 100%) padding-box,
+    radial-gradient(80% 140% at 0% 120%, rgba(120, 170, 255, 0.4), transparent 60%) padding-box,
+    radial-gradient(80% 140% at 100% 120%, rgba(255, 160, 210, 0.32), transparent 60%) padding-box,
+    rgba(14, 16, 26, 0.84) padding-box,
+    var(--liquid-glint) border-box fixed;
+}
+
+/* The panel's own rim. */
+html.glass.liquid .notch-panel {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-top: none;
+  box-shadow:
+    inset 0 -1.5px 0 rgba(255, 255, 255, 0.45),
+    inset 1.5px 0 1px -1px rgba(120, 200, 255, 0.3),
+    inset -1.5px 0 1px -1px rgba(255, 140, 200, 0.3) !important;
+}
+
+/* The picker's swatch. */
+.theme-swatch.liquid {
+  background:
+    radial-gradient(40% 60% at 20% 25%, rgba(59, 130, 246, 0.75), transparent 70%),
+    radial-gradient(36% 56% at 80% 20%, rgba(168, 85, 247, 0.65), transparent 70%),
+    radial-gradient(40% 60% at 65% 85%, rgba(249, 115, 22, 0.5), transparent 70%),
+    #0a0d18;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.theme-swatch.liquid::after {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.12));
+  backdrop-filter: blur(4px) url(#jv-liquid-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), inset 0 -1px 0 rgba(255, 255, 255, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.glass.liquid .notch-panel::before {
+    animation: none;
+  }
+}

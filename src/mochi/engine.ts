@@ -56,9 +56,11 @@ interface BotStateCfg {
 }
 
 interface Particle {
-  type: "heart" | "star" | "spark" | "sweat" | "z";
+  type: "heart" | "star" | "spark" | "sweat" | "z" | "snow" | "confetti";
   x: number; y: number; vx: number; vy: number;
   age: number; life: number; rot: number; size: number;
+  /** Confetti colour. */
+  color?: string;
 }
 
 // ── Constants (MochiConst / PISTES.mochi) ─────────────────────────────────────
@@ -567,6 +569,44 @@ export class BotEngine {
         rot: Math.random() * Math.PI * 2,
         size: 0.15 + Math.random() * 0.08,
       });
+    }
+  }
+
+  /**
+   * Seasonal bits around Mochi: snow drifting down past him, or a burst of
+   * confetti thrown up from his head (the colours given, else a party mix).
+   */
+  emitSeason(type: "snow" | "confetti", count: number, colors?: readonly string[]) {
+    const mix = colors && colors.length ? colors : ["#f472b6", "#60a5fa", "#facc15", "#34d399", "#a78bfa"];
+    for (let i = 0; i < count; i++) {
+      if (type === "snow") {
+        this.particles.push({
+          type,
+          x: (Math.random() - 0.5) * 1.8,
+          y: -1.15 - Math.random() * 0.3,
+          vx: (Math.random() - 0.5) * 0.12,
+          vy: 0.32 + Math.random() * 0.22,
+          age: -i * 0.12,
+          life: 2.4 + Math.random() * 0.8,
+          rot: Math.random() * Math.PI * 2,
+          size: 0.07 + Math.random() * 0.06,
+        });
+      } else {
+        const ang = -Math.PI / 2 + (Math.random() - 0.5) * 1.9;
+        const sp = 0.7 + Math.random() * 0.5;
+        this.particles.push({
+          type,
+          x: (Math.random() - 0.5) * 0.3,
+          y: -0.75,
+          vx: Math.cos(ang) * sp,
+          vy: Math.sin(ang) * sp,
+          age: -i * 0.03,
+          life: 1.1 + Math.random() * 0.5,
+          rot: Math.random() * Math.PI * 2,
+          size: 0.09 + Math.random() * 0.05,
+          color: mix[i % mix.length],
+        });
+      }
     }
   }
 
@@ -1355,6 +1395,20 @@ export class BotEngine {
           x.quadraticCurveTo(sz * 0.8, sz * 0.2, 0, sz * 0.6);
           x.quadraticCurveTo(-sz * 0.8, sz * 0.2, 0, -sz);
           x.fill();
+          break;
+        case "snow":
+          x.fillStyle = "#ffffff";
+          x.shadowColor = "rgba(255,255,255,0.8)";
+          x.shadowBlur = sz;
+          x.beginPath();
+          x.arc(Math.sin(p.age * 2 + p.rot) * sz, 0, sz * 0.55, 0, Math.PI * 2);
+          x.fill();
+          break;
+        case "confetti":
+          x.rotate(p.rot + p.age * 5);
+          x.scale(1, Math.cos(p.age * 9 + p.rot));
+          x.fillStyle = p.color ?? "#facc15";
+          x.fillRect(-sz * 0.6, -sz * 0.35, sz * 1.2, sz * 0.7);
           break;
         case "z":
           x.fillStyle = "rgb(209,219,235)";

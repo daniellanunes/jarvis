@@ -59,7 +59,7 @@ Uma pílula no topo da tela, com o mascote, a música tocando e as informações
 | <img src="docs/images/notch-youtube.png" alt="Notch mostrando um vídeo do YouTube"> | Mostra o que toca em **qualquer app** (YouTube, VLC, Netflix…), não só no Spotify. |
 | <img src="docs/images/notch-alert.png" alt="Lembrete no notch"> | **Lembretes** da agenda aparecem com som e voz na hora certa. |
 
-**Cinco visuais e três formatos** em Ajustes → Notch: **Grafite** (sóbrio, cinza neutro), **Cristal** (vidro no estilo do iOS, com luz colorida e bordas brilhantes), **Meia-noite** (vidro azul), **Aurora** (vidro violeta e rosa) e **Esmeralda** (vidro verde) — no formato **Notch** (preso à borda), **Ilha** (uma cápsula flutuando, como a Ilha Dinâmica) ou **Aba** (cantos quase retos).
+**Seis visuais e três formatos** em Ajustes → Notch: **Grafite** (sóbrio, cinza neutro), **Cristal** (vidro no estilo do iOS, com luz colorida e bordas brilhantes), **Meia-noite** (vidro azul), **Aurora** (vidro violeta e rosa) **Esmeralda** (vidro verde) e **Vidro Líquido** (no estilo do Liquid Glass: refrata a luz atrás e a borda brilha onde está o mouse) — no formato **Notch** (preso à borda), **Ilha** (uma cápsula flutuando, como a Ilha Dinâmica) ou **Aba** (cantos quase retos).
 
 <img src="docs/images/notch-themes.png" width="820" alt="A pílula nos visuais Grafite, Cristal, Meia-noite, Aurora e Esmeralda e nos três formatos">
 
@@ -67,11 +67,19 @@ Numa **ligação do WhatsApp**, o notch mostra quem é, o tempo e os botões (si
 
 <img src="docs/images/notch-call.png" width="640" alt="Ligação do WhatsApp no notch">
 
+**Vidro Líquido** — o vidro refrata a luz atrás dele e a borda acende onde está o mouse:
+
+<img src="docs/images/panel-liquid.png" width="720" alt="Visual Vidro Líquido">
+
 **Temas da época** — no Natal, neve caindo, pinheiro e luzinhas sob o notch; na Festa Junina, bandeirinhas e fogueira; e assim no Ano Novo (fogos), Carnaval (confete), Páscoa, Halloween (morcegos) e no seu aniversário (balões), com contagem regressiva no Início:
 
 | Natal | Festa Junina |
 |---|---|
 | <img src="docs/images/panel-season-natal.png" alt="Tema de Natal"> | <img src="docs/images/panel-season-junina.png" alt="Tema de Festa Junina"> |
+
+Em Ajustes → Notch → **Temas da época**, cada época tem a sua prévia (com o mascote já vestido):
+
+<img src="docs/images/settings-seasons.png" width="720" alt="Escolha dos temas da época">
 
 <img src="docs/images/panel-glass.png" width="820" alt="Painel no visual Cristal">
 
@@ -308,9 +316,9 @@ Ajustes → **Notch**:
 
 | Opção | O que faz |
 |---|---|
-| **Visual** | **Grafite**, **Cristal**, **Meia-noite**, **Aurora** ou **Esmeralda**. Muda na hora, sem reiniciar. |
+| **Visual** | **Grafite**, **Cristal**, **Meia-noite**, **Aurora**, **Esmeralda** ou **Vidro Líquido**. Muda na hora, sem reiniciar. |
 | **Formato do notch** | **Notch** (preso à borda de cima), **Ilha** (cápsula flutuante) ou **Aba** (cantos quase retos). |
-| **Temas da época** | **Automático** (padrão): Natal (dezembro), Ano Novo, Carnaval, Páscoa, Festa Junina, Halloween e o seu aniversário (*Seu aniversário*: DD/MM) mudam o notch e o mascote sozinhos. Também dá para escolher uma época na mão, ou **Desligado**. |
+| **Temas da época** | Cartões com a prévia de cada época (o mascote já vestido). **Automático** (padrão): Natal (dezembro), Ano Novo, Carnaval, Páscoa, Festa Junina, Halloween e o seu aniversário (*Seu aniversário*: DD/MM) mudam o notch e o mascote sozinhos — e no dia especial o mascote acena e faz a festa da época (neve, confete, estrelas). Também dá para escolher uma época na mão, ou **Desligado**. |
 | **Quando o notch aparece** | *Sempre visível* ou *Escondido* (aparece ao passar o mouse na borda de cima ou ao falar com o Jarvis). |
 | **Em qual monitor** | Principal, um específico, ou *os dois* (vai para o monitor onde está o mouse). |
 | **Clima** | Digite sua cidade e **Salvar** — ele mostra o que vai aparecer. |

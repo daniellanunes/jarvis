@@ -115,6 +115,8 @@ def main() -> None:
         ("panel-contacts", "open=tasks&sub=Contatos"),
         ("panel-season-natal", "open=home&season=natal&theme=glass"),
         ("panel-season-junina", "open=home&season=junina&theme=glass"),
+        ("panel-liquid", "open=home&theme=liquid&glint=420,230"),
+        ("settings-seasons", "open=settings&sub=Notch&season=auto&scroll=Temas da época"),
         ("settings-obs-backup", "open=settings&scroll=OBS Studio"),
         ("settings-ai", "open=settings&scroll=Trocar de IA automaticamente"),
         ("settings-notch", "open=settings&sub=Notch&scroll=Informações no notch"),

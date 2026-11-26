@@ -444,6 +444,15 @@ const ART: Partial<Record<SeasonId, string>> = {
 const PUMPKIN = `<svg viewBox="0 0 60 50"><ellipse cx="30" cy="28" rx="28" ry="21" fill="#f97316"/><path d="M30 8 Q28 1 35 -1" stroke="#15803d" stroke-width="3.5" fill="none"/>
   <path d="M17 23 L23 17 L25 25 Z M35 25 L37 17 L43 23 Z M16 33 Q30 45 44 33 L39 35 L35 31 L30 37 L25 31 L21 35 Z" fill="#fde047" class="art-tw"/></svg>`;
 
+/** A small drawn mark for the season (the card on Início, never emoji). */
+export function seasonIcon(season: SeasonId, size = 34): HTMLElement {
+  const el = h("span", { class: `season-icon art-${season}`, "aria-hidden": "true" });
+  el.style.width = `${size}px`;
+  el.style.height = `${size}px`;
+  el.innerHTML = season === "halloween" ? PUMPKIN : ART[season] ?? "";
+  return el;
+}
+
 /** The season's ornament for a corner of the panel. */
 export function cornerArt(season: SeasonId): HTMLElement | null {
   if (season === "halloween") {
