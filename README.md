@@ -486,6 +486,7 @@ Ajustes → **IA & Voz** → **Sobre** → **Backup das configurações**: **Exp
 | A voz dele está robótica | Ajustes → IA & Voz → **Voz do Jarvis**: escolha uma voz neural (Antonio, Francisca…). A “Voz do Windows” é a robótica, para quando não há internet. |
 | Não ouço quando ele começa a escutar | **Voz do Jarvis → Som quando ele começa a ouvir → Alto**. |
 | WhatsApp: ligação fica em “Ligando…” | É do WhatsApp Web (as ligações pelo navegador ainda são instáveis e, depois de muitas tentativas seguidas, o WhatsApp segura por algumas horas). Tente mais tarde ou ligue pelo celular. |
+| “Couldn't access platform secure storage” ao salvar uma chave | Corrigido na 0.1.12: atualize o Jarvis. O Jarvis aberto como administrador agora usa o Cofre de Credenciais pela sua sessão do Windows. |
 | OBS: “Não consegui falar com o OBS” | Abra o OBS e ative **Ferramentas → Configurações do servidor WebSocket → Ativar** (porta 4455). Se ele pedir senha, cole em Ajustes → OBS Studio. |
 | Num site, o Jarvis aparece deslogado | Ajustes → IA & Voz → **Logins do navegador do Jarvis** → entre na conta uma vez (fica salvo). |
 | O ditado escreveu no lugar errado | Ele escreve na janela em que você estava antes de falar. Clique onde quer escrever e fale de novo. |
